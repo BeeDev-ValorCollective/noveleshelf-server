@@ -20,7 +20,7 @@ ALLOWED_HOSTS = []
 CSRF_TRUSTED_ORIGINS = []
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
+    "http://localhost:5173", "http://localhost:8081",
 ]
 
 # Application definition
