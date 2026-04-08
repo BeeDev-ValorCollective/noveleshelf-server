@@ -22,6 +22,18 @@ class User(AbstractUser):
     username = None
     email = models.EmailField(unique=True)
     date_of_birth = models.DateField(null=True, blank=True)
+    default_login_role = models.CharField(
+        max_length=20,
+        choices=[
+            ('reader', 'Reader'),
+            ('author', 'Author'),
+            ('moderator', 'Moderator'),
+            ('admin', 'Admin'),
+        ],
+        default='reader',
+        null=True,
+        blank=True
+    )
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []

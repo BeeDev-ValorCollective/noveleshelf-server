@@ -6,11 +6,11 @@ from .models import User, UserProfile, UserWallet, AdminProfile
 @receiver(post_save, sender=User)
 def handle_new_user(sender, instance, created, **kwargs):
     if created:
-        # Every new user gets a profile and wallet
+        instance.default_login_role = 'reader'
+        instance.save()
         UserProfile.objects.create(user=instance)
         UserWallet.objects.create(user=instance)
 
-        # First user ever gets super admin
         if User.objects.count() == 1:
             AdminProfile.objects.create(
                 user=instance,

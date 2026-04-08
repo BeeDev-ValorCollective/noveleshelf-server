@@ -3,4 +3,4 @@ from rest_framework.response import Response
 
 @api_view(['GET'])
 def health_check(request):
-    return Response({"status": "ok", "message": "Django is talking to React!"})
+    return Response({"status": "ok", "message": "Django is talking!"})
