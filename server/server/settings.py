@@ -1,6 +1,6 @@
-from pathlib import Path
 import os, certifi
 from environ import Env
+from datetime import timedelta
 
 os.environ["SSL_CERT_FILE"] = certifi.where()
 
@@ -34,17 +34,34 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
+    'storages',
+    'django_crontab',
 ]
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+}
+CRONJOBS = [
+    ('0 0 * * *', 'apps.currency.cron.grant_daily_black_ink'),
 ]
 
 ROOT_URLCONF = 'server.urls'
@@ -72,7 +89,7 @@ DATABASES = {
         'NAME': env('DB_NAME'),
         'USER': env('DB_USER'),
         'PASSWORD': env('DB_PASSWORD'),
-        'HOST': 'localhost',
+        'HOST': env('DB_HOST', default='localhost'),
         'PORT': '3306',
     }
 }
