@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import UserProfile, UserWallet, AdminProfile, AuthorProfile
+from .models import UserProfile, UserWallet, AdminProfile, AuthorProfile, ModeratorProfile
 
 User = get_user_model()
 
@@ -56,12 +56,20 @@ class AuthorProfileSerializer(serializers.ModelSerializer):
         model = AuthorProfile
         fields = ['author_username', 'pen_name', 'bio', 'tier', 'contract_link', 'avatar_url', 'created_at']
 
+class ModeratorProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ModeratorProfile
+        fields = ['mod_username', 'avatar_url', 'assigned_by', 'created_at']
+
 class UserSerializer(serializers.ModelSerializer):
     profile = UserProfileSerializer(read_only=True)
     wallet = UserWalletSerializer(read_only=True)
     admin_profile = AdminProfileSerializer(read_only=True)
     author_profile = AuthorProfileSerializer(read_only=True)
+    moderator_profile = ModeratorProfileSerializer(read_only=True)
 
     class Meta:
         model = User
-        fields = ['id', 'email', 'date_of_birth', 'default_login_role', 'profile', 'wallet', 'admin_profile', 'author_profile']
+        fields = ['id', 'email', 'date_of_birth', 'default_login_role', 'profile', 'wallet', 'admin_profile', 'author_profile', 'moderator_profile']
+
+

@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth import get_user_model
-from .models import User, UserProfile, UserWallet, AdminProfile, AuthorProfile
+from .models import User, UserProfile, UserWallet, AdminProfile, AuthorProfile, ModeratorProfile
 
 User = get_user_model()
 
@@ -25,11 +25,16 @@ class AuthorProfileInline(admin.StackedInline):
     model = AuthorProfile
     can_delete = False
 
+class ModeratorProfileInline(admin.StackedInline):
+    model = ModeratorProfile
+    can_delete = False
+    fk_name = 'user'
+
 
 class UserAdmin(BaseUserAdmin):
     ordering = ['email']
     list_display = ['email', 'date_of_birth', 'is_staff', 'is_superuser']
-    inlines = [UserProfileInline, UserWalletInline, AdminProfileInline, AuthorProfileInline]
+    inlines = [UserProfileInline, UserWalletInline, AdminProfileInline, AuthorProfileInline, ModeratorProfileInline]
 
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
@@ -54,3 +59,4 @@ admin.site.register(UserProfile)
 admin.site.register(UserWallet)
 admin.site.register(AdminProfile)
 admin.site.register(AuthorProfile)
+admin.site.register(ModeratorProfile)

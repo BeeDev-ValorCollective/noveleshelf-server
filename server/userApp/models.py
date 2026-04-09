@@ -17,7 +17,6 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault('is_superuser', True)
         return self.create_user(email, password, **extra_fields)
 
-
 class User(AbstractUser):
     username = None
     email = models.EmailField(unique=True)
@@ -43,7 +42,6 @@ class User(AbstractUser):
     def __str__(self):
         return self.email
 
-
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     username = models.CharField(max_length=50, unique=True, null=True, blank=True)
@@ -59,7 +57,6 @@ class UserProfile(models.Model):
     def __str__(self):
         return f'{self.user.email} profile'
 
-
 class UserWallet(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='wallet')
     quill_balance = models.IntegerField(default=0)
@@ -69,7 +66,6 @@ class UserWallet(models.Model):
 
     def __str__(self):
         return f'{self.user.email} wallet'
-
 
 class AdminProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='admin_profile')
@@ -103,3 +99,23 @@ class AuthorProfile(models.Model):
 
     def __str__(self):
         return f'{self.pen_name or self.author_username or self.user.email} (author)'
+    
+class ModeratorProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='moderator_profile')
+    mod_username = models.CharField(max_length=50, unique=True, null=True, blank=True)
+    avatar_url = models.ImageField(
+        upload_to='avatars/moderator/',
+        null=True,
+        blank=True,
+        default='avatars/moderator/default.png'
+    )
+    assigned_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='assigned_moderators'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'{self.mod_username or self.user.email} (moderator)'

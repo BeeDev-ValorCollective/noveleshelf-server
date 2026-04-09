@@ -4,17 +4,21 @@ To start it will not include the contact form but may incorporate it at a later 
 
 ## EndPoints:
 
-| Method | Endpoint                        | Description                | Auth Required               |
-|--------|---------------------------------|----------------------------|-----------------------------|
-| GET    | /admin                          | Django admin               | Yes                         |
-| POST   | /api/auth/register/             | Create User                | No                          |
-| POST   | /api/auth/login/                | Login                      | No                          |
-| GET    | /api/auth/me/                   | User details               | Yes                         |
-| POST   | /api/auth/logout/               | Logout                     | Yes                         |
-| POST   | /api/auth/refresh/              | Refresh Token              | Yes - refresh token in body |
-| PATCH  | /api/auth/profile/update/       | Update reader profile      | Yes                         |
-| PATCH  | /api/auth/admin-profile/update/ | Update admin profile       | Yes                         |
-| POST   | /api/auth/admin/author-upgrade/ | Update user to author      | Yes                         |
+| Method | Endpoint                         | Description                | Auth Required               |
+|--------|----------------------------------|----------------------------|-----------------------------|
+| GET    | /admin                           | Django admin               | Yes                         |
+| POST   | /api/auth/register/              | Create User                | No                          |
+| POST   | /api/auth/login/                 | Login                      | No                          |
+| GET    | /api/auth/me/                    | User details               | Yes                         |
+| POST   | /api/auth/logout/                | Logout                     | Yes                         |
+| POST   | /api/auth/refresh/               | Refresh Token              | Yes - refresh token in body |
+| PATCH  | /api/auth/profile/update/        | Update reader profile      | Yes                         |
+| PATCH  | /api/auth/admin-profile/update/  | Update admin profile       | Yes                         |
+| POST   | /api/auth/admin/author-upgrade/  | Update user to author      | Yes                         |
+| PATCH  | /api/auth/author-profile/update/ | Update author profile      | Yes                         |
+| POST   | /api/auth/admin/upgrade-to-admin/ | Upgrade user to admin | Yes |
+| POST  | /api/auth/admin/upgrade-to-moderator/ | Upgrade user to moderator    | Yes |
+| PATCH | /api/auth/moderator-profile/update/   | Update moderator profile     | Yes |
 
 ## Notes:
 ### Frontend Notes
@@ -321,6 +325,194 @@ Authorization     Bearer <access_token>
 - Author will need to set their own username and pen name via the author profile update endpoint
 - Contract link is set by admin separately via the author management endpoint
 
+### Update Author (author side)
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     multipart/form-data
+```
+#### Body (form-data, all fields optional):
+```
+author_username    new username
+bio                bio content
+```
+#### Success response 200:
+```json
+{
+    "message": "Author profile updated successfully",
+    "author_profile": {
+        "author_username": "TestAuthor",
+        "pen_name": "Test Pen Name",
+        "bio": "This is my author bio",
+        "tier": 1,
+        "contract_link": null,
+        "avatar_url": "/media/avatars/author/default.png",
+        "created_at": "2026-04-09T12:00:00Z"
+    }
+}
+```
+#### Error responses:
+```json
+403: {"error": "Author profile not found"}
+400: {"error": "Author username already taken"}
+```
+#### Notes:
+- Only users with an author profile can access this endpoint
+- `tier` and `contract_link` cannot be updated through this endpoint — admin only
+- Uses PATCH not PUT — only send fields you want to change
+- Body must be form-data not JSON to support image uploads
+- Pre-populate fields from `/me/` on form load, only send changed fields
+
+### Admin Author Profile Update
+#### Headers:
+```
+Content-Type    application/json
+Authorization    Bearer <access_token>
+```
+#### Body (all fields optional except user_id):
+```json
+{
+    "user_id": 2,
+    "tier": 2,
+    "contract_link": "https://drive.google.com/drive/folders/example"
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "user@example.com author profile updated successfully",
+    "author_profile": {
+        "author_username": "TestAuthor",
+        "pen_name": "Test Pen Name",
+        "bio": "This is my author bio",
+        "tier": 2,
+        "contract_link": "https://drive.google.com/drive/folders/example",
+        "avatar_url": "/media/avatars/author/default.png",
+        "created_at": "2026-04-09T12:00:00Z"
+    }
+}
+```
+#### Error responses:
+```json
+403: {"error": "You do not have permission to perform this action"}
+400: {"error": "user_id is required"}
+400: {"error": "Tier must be between 1 and 5"}
+400: {"error": "Tier must be a number"}
+404: {"error": "User not found"}
+404: {"error": "User does not have an author profile"}
+```
+#### Notes:
+- Admin access required
+- Tier must be between 1 and 5
+- Contract link should be a Google Drive folder URL
+- Only tier and contract_link can be updated through this endpoint
+- Author updates their own username, pen name, bio and avatar via the author profile update endpoint
+
+### Upgrade to Admin
+#### Headers:
+```
+Content-Type    application/json
+Authorization    Bearer <access_token>
+```
+#### Body:
+```json
+{
+    "user_id": 2
+}
+```
+#### Success response 201:
+```json
+{
+    "message": "user@example.com has been upgraded to admin successfully",
+    "admin_profile": {
+        "admin_username": "user@example.com",
+        "is_super_admin": false,
+        "avatar_url": "/media/avatars/admin/default.png",
+        "created_at": "2026-04-09T12:00:00Z"
+    }
+}
+```
+#### Error responses:
+```json
+403: {"error": "You do not have permission to perform this action"}
+400: {"error": "user_id is required"}
+400: {"error": "User is already an admin"}
+404: {"error": "User not found"}
+```
+#### Notes:
+- Any is_staff user can upgrade others to admin
+- Upgraded admin gets is_staff set to True automatically
+- admin_username defaults to the user's email — can be updated via admin profile update endpoint
+- is_super_admin is always False for upgraded admins — superadmin is set internally only
+
+### Upgrade to Moderator
+#### Headers:
+```
+Content-Type    application/json
+Authorization    Bearer <access_token>
+```
+#### Body:
+```json
+{
+    "user_id": 5
+}
+```
+#### Success response 201:
+```json
+{
+    "message": "user@example.com has been upgraded to moderator successfully",
+    "moderator_profile": {
+        "mod_username": null,
+        "avatar_url": "/media/avatars/moderator/default.png",
+        "assigned_by": 1,
+        "created_at": "2026-04-09T12:00:00Z"
+    }
+}
+```
+#### Error responses:
+```json
+403: {"error": "You do not have permission to perform this action"}
+400: {"error": "user_id is required"}
+400: {"error": "User is already a moderator"}
+404: {"error": "User not found"}
+```
+#### Notes:
+- Any is_staff user can upgrade others to moderator
+- assigned_by is automatically set to the admin performing the upgrade
+- mod_username defaults to null — moderator sets it via moderator profile update endpoint
+
+### Update moderator profile
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     multipart/form-data
+```
+#### Body (form-data, all fields optional):
+```
+mod_username    new username
+```
+#### Success response 200:
+```json
+{
+    "message": "Moderator profile updated successfully",
+    "moderator_profile": {
+        "mod_username": "TestModerator",
+        "avatar_url": "/media/avatars/moderator/default.png",
+        "assigned_by": 1,
+        "created_at": "2026-04-09T12:00:00Z"
+    }
+}
+```
+#### Error responses:
+```json
+403: {"error": "Moderator profile not found"}
+400: {"error": "Moderator username already taken"}
+```
+#### Notes:
+- Only users with a moderator profile can access this endpoint
+- Uses PATCH not PUT — only send fields you want to change
+- Body must be form-data not JSON to support image uploads
+- Pre-populate fields from `/me/` on form load, only send changed fields
 
 ## Debug EndPoints:
 
