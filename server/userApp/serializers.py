@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import UserProfile, UserWallet, AdminProfile
+from .models import UserProfile, UserWallet, AdminProfile, AuthorProfile
 
 User = get_user_model()
 
@@ -39,7 +39,7 @@ class UserWalletSerializer(serializers.ModelSerializer):
 class AdminProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = AdminProfile
-        fields = ['admin_username', 'is_super_admin', 'created_at']
+        fields = ['admin_username', 'is_super_admin', 'avatar_url', 'created_at']
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -50,3 +50,18 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'email', 'date_of_birth','default_login_role', 'profile', 'wallet', 'admin_profile']
+
+class AuthorProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AuthorProfile
+        fields = ['author_username', 'pen_name', 'bio', 'tier', 'contract_link', 'avatar_url', 'created_at']
+
+class UserSerializer(serializers.ModelSerializer):
+    profile = UserProfileSerializer(read_only=True)
+    wallet = UserWalletSerializer(read_only=True)
+    admin_profile = AdminProfileSerializer(read_only=True)
+    author_profile = AuthorProfileSerializer(read_only=True)
+
+    class Meta:
+        model = User
+        fields = ['id', 'email', 'date_of_birth', 'default_login_role', 'profile', 'wallet', 'admin_profile', 'author_profile']

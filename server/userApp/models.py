@@ -47,7 +47,12 @@ class User(AbstractUser):
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     username = models.CharField(max_length=50, unique=True, null=True, blank=True)
-    avatar_url = models.ImageField(upload_to='avatars/', null=True, blank=True)
+    avatar_url = models.ImageField(
+        upload_to='avatars/reader/', 
+        null=True, 
+        blank=True,
+        default='avatars/reader/default.png'
+    )
     bio = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -70,7 +75,31 @@ class AdminProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='admin_profile')
     admin_username = models.CharField(max_length=50, unique=True)
     is_super_admin = models.BooleanField(default=False)
+    avatar_url = models.ImageField(
+        upload_to='avatars/admin/',
+        null=True,
+        blank=True,
+        default='avatars/admin/default.png'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f'{self.admin_username} ({"super " if self.is_super_admin else ""}admin)'
+    
+class AuthorProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='author_profile')
+    author_username = models.CharField(max_length=50, unique=True, null=True, blank=True)
+    pen_name = models.CharField(max_length=100, null=True, blank=True)
+    bio = models.TextField(null=True, blank=True)
+    tier = models.IntegerField(default=1)
+    contract_link = models.URLField(null=True, blank=True)
+    avatar_url = models.ImageField(
+        upload_to='avatars/author/',
+        null=True,
+        blank=True,
+        default='avatars/author/default.png'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'{self.pen_name or self.author_username or self.user.email} (author)'
