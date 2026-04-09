@@ -7,18 +7,24 @@ To start it will not include the contact form but may incorporate it at a later 
 | Method | Endpoint                         | Description                | Auth Required               |
 |--------|----------------------------------|----------------------------|-----------------------------|
 | GET    | /admin                           | Django admin               | Yes                         |
+|||||
 | POST   | /api/auth/register/              | Create User                | No                          |
 | POST   | /api/auth/login/                 | Login                      | No                          |
 | GET    | /api/auth/me/                    | User details               | Yes                         |
 | POST   | /api/auth/logout/                | Logout                     | Yes                         |
 | POST   | /api/auth/refresh/               | Refresh Token              | Yes - refresh token in body |
+|||||
 | PATCH  | /api/auth/profile/update/        | Update reader profile      | Yes                         |
+| PATCH  | /api/auth/profile/role/update/ | Update default login role | Yes |
 | PATCH  | /api/auth/admin-profile/update/  | Update admin profile       | Yes                         |
-| POST   | /api/auth/admin/author-upgrade/  | Update user to author      | Yes                         |
 | PATCH  | /api/auth/author-profile/update/ | Update author profile      | Yes                         |
-| POST   | /api/auth/admin/upgrade-to-admin/ | Upgrade user to admin | Yes |
-| POST  | /api/auth/admin/upgrade-to-moderator/ | Upgrade user to moderator    | Yes |
-| PATCH | /api/auth/moderator-profile/update/   | Update moderator profile     | Yes |
+| PATCH  | /api/auth/moderator-profile/update/   | Update moderator profile     | Yes |
+|||||
+| POST   | /api/auth/admin/author-upgrade/  | Update user to author      | Yes                         |
+| POST   | /api/auth/admin/admin-upgrade/ | Upgrade user to admin | Yes |
+| POST   | /api/auth/admin/moderator-upgrade/ | Upgrade user to moderator    | Yes |
+| PATCH  | /api/auth/admin/author-profile/update/ | Admin update author tier and contract | Yes |
+
 
 ## Notes:
 ### Frontend Notes
@@ -513,6 +519,39 @@ mod_username    new username
 - Uses PATCH not PUT — only send fields you want to change
 - Body must be form-data not JSON to support image uploads
 - Pre-populate fields from `/me/` on form load, only send changed fields
+
+### Update default login role
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "default_login_role": "author"
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "Default login role updated to author",
+    "default_login_role": "author"
+}
+```
+#### Error responses:
+```json
+400: {"error": "default_login_role is required"}
+400: {"error": "Invalid role. Must be one of: reader, author, moderator, admin"}
+403: {"error": "You do not have an author profile"}
+403: {"error": "You do not have a moderator profile"}
+403: {"error": "You do not have an admin profile"}
+```
+#### Notes:
+- User can only set a role they actually have a profile for
+- Setting to reader is always allowed since every user is a reader
+- Once set the login gate will be skipped and user will be routed directly to this role on login
+- User can always change back to reader or any other role they have
 
 ## Debug EndPoints:
 

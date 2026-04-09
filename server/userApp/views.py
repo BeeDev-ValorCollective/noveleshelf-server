@@ -397,3 +397,48 @@ def update_moderator_profile(request):
         'message': 'Moderator profile updated successfully',
         'moderator_profile': ModeratorProfileSerializer(moderator_profile).data
     })
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_default_role(request):
+    role = request.data.get('default_login_role')
+    
+    if not role:
+        return Response(
+            {'error': 'default_login_role is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    valid_roles = ['reader', 'author', 'moderator', 'admin']
+    if role not in valid_roles:
+        return Response(
+            {'error': f'Invalid role. Must be one of: {", ".join(valid_roles)}'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # make sure user actually has the profile for the role they are setting
+    if role == 'author' and not hasattr(request.user, 'author_profile'):
+        return Response(
+            {'error': 'You do not have an author profile'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+    
+    if role == 'moderator' and not hasattr(request.user, 'moderator_profile'):
+        return Response(
+            {'error': 'You do not have a moderator profile'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+    
+    if role == 'admin' and not hasattr(request.user, 'admin_profile'):
+        return Response(
+            {'error': 'You do not have an admin profile'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+    
+    request.user.default_login_role = role
+    request.user.save()
+    
+    return Response({
+        'message': f'Default login role updated to {role}',
+        'default_login_role': request.user.default_login_role
+    })

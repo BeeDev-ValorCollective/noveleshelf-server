@@ -10,9 +10,12 @@ urlpatterns = [
     path('me/', views.me),
     # Update Profile Routes
     path('profile/update/', views.update_profile),
+    path('profile/role/update/', views.update_default_role),
+
     path('author-profile/update/', views.update_author_profile),
     path('admin-profile/update/', views.update_admin_profile),
     path('moderator-profile/update/', views.update_moderator_profile),
+
     # Admin Routes
     path('admin/author-upgrade/', views.upgrade_to_author),
     path('admin/author-profile/update/', views.admin_update_author),
