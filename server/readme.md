@@ -1,32 +1,38 @@
-This is the main app/website backend. 
+# NovelShelf Backend API
 
-To start it will not include the contact form but may incorporate it at a later date
+This is the main app/website backend.
 
-## EndPoints:
+To start it will not include the contact form but may incorporate it at a later date.
 
-| Method | Endpoint                         | Description                | Auth Required               |
-|--------|----------------------------------|----------------------------|-----------------------------|
-| GET    | /admin                           | Django admin               | Yes                         |
-|||||
-| POST   | /api/auth/register/              | Create User                | No                          |
-| POST   | /api/auth/login/                 | Login                      | No                          |
-| GET    | /api/auth/me/                    | User details               | Yes                         |
-| POST   | /api/auth/logout/                | Logout                     | Yes                         |
-| POST   | /api/auth/refresh/               | Refresh Token              | Yes - refresh token in body |
-|||||
-| PATCH  | /api/auth/profile/update/        | Update reader profile      | Yes                         |
-| PATCH  | /api/auth/profile/role/update/ | Update default login role | Yes |
-| PATCH  | /api/auth/admin-profile/update/  | Update admin profile       | Yes                         |
-| PATCH  | /api/auth/author-profile/update/ | Update author profile      | Yes                         |
-| PATCH  | /api/auth/moderator-profile/update/   | Update moderator profile     | Yes |
-|||||
-| POST   | /api/auth/admin/author-upgrade/  | Update user to author      | Yes                         |
-| POST   | /api/auth/admin/admin-upgrade/ | Upgrade user to admin | Yes |
-| POST   | /api/auth/admin/moderator-upgrade/ | Upgrade user to moderator    | Yes |
-| PATCH  | /api/auth/admin/author-profile/update/ | Admin update author tier and contract | Yes |
+---
 
+## Endpoints
 
-## Notes:
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| GET | /admin | Django admin | Yes |
+| | | | |
+| POST | /api/auth/register/ | [Create User](#register) | No |
+| POST | /api/auth/login/ | [Login](#login) | No |
+| GET | /api/auth/me/ | [User details](#me) | Yes |
+| POST | /api/auth/logout/ | [Logout](#logout) | Yes |
+| POST | /api/auth/refresh/ | [Refresh Token](#refresh) | Yes - refresh token in body |
+| | | | |
+| PATCH | /api/auth/profile/update/ | [Update reader profile](#update-profile) | Yes |
+| PATCH | /api/auth/profile/role/update/ | [Update default login role](#update-default-login-role) | Yes |
+| PATCH | /api/auth/admin-profile/update/ | [Update admin profile](#update-admin-profile) | Yes |
+| PATCH | /api/auth/author-profile/update/ | [Update author profile](#update-author-profile-author-side) | Yes |
+| PATCH | /api/auth/moderator-profile/update/ | [Update moderator profile](#update-moderator-profile) | Yes |
+| | | | |
+| POST | /api/auth/admin/author-upgrade/ | [Upgrade user to author](#upgrade-to-author) | Yes |
+| POST | /api/auth/admin/admin-upgrade/ | [Upgrade user to admin](#upgrade-to-admin) | Yes |
+| POST | /api/auth/admin/moderator-upgrade/ | [Upgrade user to moderator](#upgrade-to-moderator) | Yes |
+| PATCH | /api/auth/admin/author-profile/update/ | [Admin update author tier and contract](#admin-author-profile-update) | Yes |
+
+---
+
+## Notes
+
 ### Frontend Notes
 - On login/register: store both tokens, use user data to route to correct dashboard
 - On app load: check for stored token, if exists call `/me/` to rebuild user state
@@ -35,14 +41,14 @@ To start it will not include the contact form but may incorporate it at a later 
 - Never store access token in `localStorage` — use `sessionStorage` (web) or `SecureStore` (Expo)
 - Refresh token expires after 7 days — user will need to log in again after that
 
-### Login routing
+### Login Routing
 - Single role user (reader only) → redirect to app.noveleshelf.com
 - Multi role user → show gate to choose role
 - If user has set a preferred role (default_login_role changed from reader) → skip gate, route directly to that role
 - Reader chosen → app.noveleshelf.com
 - Author/Admin/Mod chosen → noveleshelf.com
 
-
+---
 
 ## Endpoint Details
 
@@ -97,6 +103,8 @@ Content-Type    application/json
 }
 ```
 
+---
+
 ### Login
 #### Headers:
 ```
@@ -134,6 +142,8 @@ Content-Type    application/json
 401: {"error": "Invalid credentials"}
 ```
 
+---
+
 ### Logout
 #### Headers:
 ```
@@ -159,7 +169,9 @@ Authorization     Bearer <access_token>
 }
 ```
 
-### me
+---
+
+### Me
 #### Headers:
 ```
 Authorization    Bearer <access_token>
@@ -198,7 +210,9 @@ None
 }
 ```
 
-### refresh
+---
+
+### Refresh
 #### Headers:
 ```
 Content-Type    application/json
@@ -222,7 +236,9 @@ Content-Type    application/json
 }
 ```
 
-### update profile
+---
+
+### Update Profile
 #### Headers:
 ```
 Authorization    Bearer <access_token>
@@ -255,9 +271,11 @@ bio              bio content
 - Uses PATCH not PUT — only send fields you want to change
 - Body must be form-data not JSON to support image uploads
 - Users can clear their bio by sending an empty string
-- form loads with values from /me/ url on submit only include changed fields in the request body
+- Form loads with values from `/me/`; on submit only include changed fields in the request body
 
-### update admin profile
+---
+
+### Update Admin Profile
 #### Headers:
 ```
 Authorization    Bearer <access_token>
@@ -290,6 +308,118 @@ admin_username         new username
 - Uses PATCH not PUT — only send fields you want to change
 - Body must be form-data not JSON to support image uploads
 - Pre-populate fields from `/me/` on form load, only send changed fields
+
+---
+
+### Update Author Profile (author side)
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     multipart/form-data
+```
+#### Body (form-data, all fields optional):
+```
+author_username    new username
+bio                bio content
+```
+#### Success response 200:
+```json
+{
+    "message": "Author profile updated successfully",
+    "author_profile": {
+        "author_username": "TestAuthor",
+        "pen_name": "Test Pen Name",
+        "bio": "This is my author bio",
+        "tier": 1,
+        "contract_link": null,
+        "avatar_url": "/media/avatars/author/default.png",
+        "created_at": "2026-04-09T12:00:00Z"
+    }
+}
+```
+#### Error responses:
+```json
+403: {"error": "Author profile not found"}
+400: {"error": "Author username already taken"}
+```
+#### Notes:
+- Only users with an author profile can access this endpoint
+- `tier` and `contract_link` cannot be updated through this endpoint — admin only
+- Uses PATCH not PUT — only send fields you want to change
+- Body must be form-data not JSON to support image uploads
+- Pre-populate fields from `/me/` on form load, only send changed fields
+
+---
+
+### Update Moderator Profile
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     multipart/form-data
+```
+#### Body (form-data, all fields optional):
+```
+mod_username    new username
+```
+#### Success response 200:
+```json
+{
+    "message": "Moderator profile updated successfully",
+    "moderator_profile": {
+        "mod_username": "TestModerator",
+        "avatar_url": "/media/avatars/moderator/default.png",
+        "assigned_by": 1,
+        "created_at": "2026-04-09T12:00:00Z"
+    }
+}
+```
+#### Error responses:
+```json
+403: {"error": "Moderator profile not found"}
+400: {"error": "Moderator username already taken"}
+```
+#### Notes:
+- Only users with a moderator profile can access this endpoint
+- Uses PATCH not PUT — only send fields you want to change
+- Body must be form-data not JSON to support image uploads
+- Pre-populate fields from `/me/` on form load, only send changed fields
+
+---
+
+### Update Default Login Role
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "default_login_role": "author"
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "Default login role updated to author",
+    "default_login_role": "author"
+}
+```
+#### Error responses:
+```json
+400: {"error": "default_login_role is required"}
+400: {"error": "Invalid role. Must be one of: reader, author, moderator, admin"}
+403: {"error": "You do not have an author profile"}
+403: {"error": "You do not have a moderator profile"}
+403: {"error": "You do not have an admin profile"}
+```
+#### Notes:
+- User can only set a role they actually have a profile for
+- Setting to reader is always allowed since every user is a reader
+- Once set the login gate will be skipped and user will be routed directly to this role on login
+- User can always change back to reader or any other role they have
+
+---
 
 ### Upgrade to Author
 #### Headers:
@@ -331,43 +461,7 @@ Authorization     Bearer <access_token>
 - Author will need to set their own username and pen name via the author profile update endpoint
 - Contract link is set by admin separately via the author management endpoint
 
-### Update Author (author side)
-#### Headers:
-```
-Authorization    Bearer <access_token>
-Content-Type     multipart/form-data
-```
-#### Body (form-data, all fields optional):
-```
-author_username    new username
-bio                bio content
-```
-#### Success response 200:
-```json
-{
-    "message": "Author profile updated successfully",
-    "author_profile": {
-        "author_username": "TestAuthor",
-        "pen_name": "Test Pen Name",
-        "bio": "This is my author bio",
-        "tier": 1,
-        "contract_link": null,
-        "avatar_url": "/media/avatars/author/default.png",
-        "created_at": "2026-04-09T12:00:00Z"
-    }
-}
-```
-#### Error responses:
-```json
-403: {"error": "Author profile not found"}
-400: {"error": "Author username already taken"}
-```
-#### Notes:
-- Only users with an author profile can access this endpoint
-- `tier` and `contract_link` cannot be updated through this endpoint — admin only
-- Uses PATCH not PUT — only send fields you want to change
-- Body must be form-data not JSON to support image uploads
-- Pre-populate fields from `/me/` on form load, only send changed fields
+---
 
 ### Admin Author Profile Update
 #### Headers:
@@ -414,6 +508,8 @@ Authorization    Bearer <access_token>
 - Only tier and contract_link can be updated through this endpoint
 - Author updates their own username, pen name, bio and avatar via the author profile update endpoint
 
+---
+
 ### Upgrade to Admin
 #### Headers:
 ```
@@ -451,6 +547,8 @@ Authorization    Bearer <access_token>
 - admin_username defaults to the user's email — can be updated via admin profile update endpoint
 - is_super_admin is always False for upgraded admins — superadmin is set internally only
 
+---
+
 ### Upgrade to Moderator
 #### Headers:
 ```
@@ -487,82 +585,20 @@ Authorization    Bearer <access_token>
 - assigned_by is automatically set to the admin performing the upgrade
 - mod_username defaults to null — moderator sets it via moderator profile update endpoint
 
-### Update moderator profile
-#### Headers:
-```
-Authorization    Bearer <access_token>
-Content-Type     multipart/form-data
-```
-#### Body (form-data, all fields optional):
-```
-mod_username    new username
-```
-#### Success response 200:
-```json
-{
-    "message": "Moderator profile updated successfully",
-    "moderator_profile": {
-        "mod_username": "TestModerator",
-        "avatar_url": "/media/avatars/moderator/default.png",
-        "assigned_by": 1,
-        "created_at": "2026-04-09T12:00:00Z"
-    }
-}
-```
-#### Error responses:
-```json
-403: {"error": "Moderator profile not found"}
-400: {"error": "Moderator username already taken"}
-```
-#### Notes:
-- Only users with a moderator profile can access this endpoint
-- Uses PATCH not PUT — only send fields you want to change
-- Body must be form-data not JSON to support image uploads
-- Pre-populate fields from `/me/` on form load, only send changed fields
+---
 
-### Update default login role
-#### Headers:
-```
-Authorization    Bearer <access_token>
-Content-Type     application/json
-```
-#### Body:
-```json
-{
-    "default_login_role": "author"
-}
-```
-#### Success response 200:
-```json
-{
-    "message": "Default login role updated to author",
-    "default_login_role": "author"
-}
-```
-#### Error responses:
-```json
-400: {"error": "default_login_role is required"}
-400: {"error": "Invalid role. Must be one of: reader, author, moderator, admin"}
-403: {"error": "You do not have an author profile"}
-403: {"error": "You do not have a moderator profile"}
-403: {"error": "You do not have an admin profile"}
-```
-#### Notes:
-- User can only set a role they actually have a profile for
-- Setting to reader is always allowed since every user is a reader
-- Once set the login gate will be skipped and user will be routed directly to this role on login
-- User can always change back to reader or any other role they have
+## Debug Endpoints
 
-## Debug EndPoints:
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| GET | /api/debug/health/ | [Health check](#health-check) | No |
+| POST | /api/debug/login/ | [Login with full debug info](#debug-login) | No |
+| GET | /api/debug/me/ | [Token owner + debug info](#debug-me) | Yes |
 
-| Method | Endpoint                        | Description                | Auth Required               |
-|--------|---------------------------------|----------------------------|-----------------------------|
-| GET    | /api/debug/health/              | check status               | No                          |
-| POST   | /api/debug/login/               | Login with full debug info | No                          |
-| GET    | /api/debug/me/                  | token owner + debug info   | Yes                         |
-
+---
 
 ## Debug Endpoint Details
+
 ### Health Check
 #### Headers:
 ```
@@ -582,6 +618,8 @@ None
 #### Notes:
 - No auth required
 - Used to confirm server is running and reachable
+
+---
 
 ### Debug Login
 #### Headers:
@@ -631,6 +669,8 @@ Content-Type    application/json
 - Existing tokens remain valid until they naturally expire
 - Add has_moderator_profile to debug block when moderator profile is built
 
+---
+
 ### Debug Me
 #### Headers:
 ```
@@ -672,5 +712,3 @@ None
 - Use this to verify which user a token belongs to
 - No tokens returned — use debug/login/ if you need fresh tokens
 - Add has_moderator_profile to debug block when moderator profile is built
-
-
