@@ -332,9 +332,12 @@ bio                bio content
 {
     "message": "Author profile updated successfully",
     "author_profile": {
-        "author_username": "TestAuthor",
-        "pen_name": "Test Pen Name",
-        "bio": "This is my author bio",
+        "author_username": null,
+        "pen_name": null,
+        "first_name": "Test",
+        "last_name": "Author",
+        "show_real_name": false,
+        "bio": null,
         "tier": 1,
         "contract_link": null,
         "avatar_url": "/media/avatars/author/default.png",
@@ -437,7 +440,10 @@ Authorization     Bearer <access_token>
 #### Body:
 ```json
 {
-    "user_id": 3
+    "user_id": 3,
+    "first_name": "Test",
+    "last_name": "Author",
+    "show_real_name": false
 }
 ```
 #### Success response 201:
@@ -447,6 +453,9 @@ Authorization     Bearer <access_token>
     "author_profile": {
         "author_username": null,
         "pen_name": null,
+        "first_name": "Test",
+        "last_name": "Author",
+        "show_real_name": false,
         "bio": null,
         "tier": 1,
         "contract_link": null,
@@ -483,7 +492,10 @@ Authorization    Bearer <access_token>
 {
     "user_id": 2,
     "tier": 2,
-    "contract_link": "https://drive.google.com/drive/folders/example"
+    "contract_link": "https://drive.google.com/drive/folders/example",
+    "first_name": "Test",
+    "last_name": "Author",
+    "show_real_name": true
 }
 ```
 #### Success response 200:
@@ -491,11 +503,14 @@ Authorization    Bearer <access_token>
 {
     "message": "user@example.com author profile updated successfully",
     "author_profile": {
-        "author_username": "TestAuthor",
-        "pen_name": "Test Pen Name",
-        "bio": "This is my author bio",
-        "tier": 2,
-        "contract_link": "https://drive.google.com/drive/folders/example",
+        "author_username": null,
+        "pen_name": null,
+        "first_name": "Test",
+        "last_name": "Author",
+        "show_real_name": false,
+        "bio": null,
+        "tier": 1,
+        "contract_link": null,
         "avatar_url": "/media/avatars/author/default.png",
         "created_at": "2026-04-09T12:00:00Z"
     }
@@ -514,7 +529,6 @@ Authorization    Bearer <access_token>
 - Admin access required
 - Tier must be between 1 and 5
 - Contract link should be a Google Drive folder URL
-- Only tier and contract_link can be updated through this endpoint
 - Author updates their own username, pen name, bio and avatar via the author profile update endpoint
 
 ---
@@ -729,7 +743,7 @@ Content-Type    application/json
         "is_superuser": true,
         "has_admin_profile": true,
         "has_author_profile": false,
-        "had_moderator_profile": false,
+        "has_moderator_profile": false,
         "default_login_role": "reader"
     }
 }
@@ -742,7 +756,6 @@ Content-Type    application/json
 #### Notes:
 - Returns fresh tokens every time regardless of existing tokens
 - Existing tokens remain valid until they naturally expire
-- Add has_moderator_profile to debug block when moderator profile is built
 
 ---
 
@@ -766,7 +779,8 @@ None
         "profile": {...},
         "wallet": {...},
         "admin_profile": {...},
-        "author_profile": null
+        "author_profile": null,
+        "moderator_profile": null
     },
     "debug": {
         "is_staff": true,
