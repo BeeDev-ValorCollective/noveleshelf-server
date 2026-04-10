@@ -18,16 +18,18 @@ To start it will not include the contact form but may incorporate it at a later 
 | POST | /api/auth/logout/ | [Logout](#logout) | Yes |
 | POST | /api/auth/refresh/ | [Refresh Token](#refresh) | Yes - refresh token in body |
 | | | | |
-| PATCH | /api/auth/profile/update/ | [Update reader profile](#update-profile) | Yes |
-| PATCH | /api/auth/profile/role/update/ | [Update default login role](#update-default-login-role) | Yes |
-| PATCH | /api/auth/admin-profile/update/ | [Update admin profile](#update-admin-profile) | Yes |
-| PATCH | /api/auth/author-profile/update/ | [Update author profile](#update-author-profile-author-side) | Yes |
-| PATCH | /api/auth/moderator-profile/update/ | [Update moderator profile](#update-moderator-profile) | Yes |
+| PATCH | /api/user/profile/update/ | [Update reader profile](#update-profile) | Yes |
+| PATCH | /api/user/default-role/update/ | [Update default login role](#update-default-login-role) | Yes |
+| PATCH | /api/user/admin-profile/update/ | [Update admin profile](#update-admin-profile) | Yes |
+| PATCH | /api/user/author-profile/update/ | [Update author profile](#update-author-profile-author-side) | Yes |
+| PATCH | /api/user/moderator-profile/update/ | [Update moderator profile](#update-moderator-profile) | Yes |
 | | | | |
-| POST | /api/auth/admin/author-upgrade/ | [Upgrade user to author](#upgrade-to-author) | Yes |
-| POST | /api/auth/admin/admin-upgrade/ | [Upgrade user to admin](#upgrade-to-admin) | Yes |
-| POST | /api/auth/admin/moderator-upgrade/ | [Upgrade user to moderator](#upgrade-to-moderator) | Yes |
-| PATCH | /api/auth/admin/author-profile/update/ | [Admin update author tier and contract](#admin-author-profile-update) | Yes |
+| POST | /api/admin/author-upgrade/ | [Upgrade user to author](#upgrade-to-author) | Yes |
+| POST | /api/admin/admin-upgrade/ | [Upgrade user to admin](#upgrade-to-admin) | Yes |
+| POST | /api/admin/moderator-upgrade/ | [Upgrade user to moderator](#upgrade-to-moderator) | Yes |
+| PATCH | /api/admin/author-update/ | [Admin update author tier and contract](#admin-author-profile-update) | Yes |
+| POST | /api/admin/deactivate-user/ | [Deactivate user](#deactivate-user) | Yes |
+| POST | /api/admin/reactivate-user/ | [Reactivate user](#reactivate-user) | Yes |
 
 ---
 
@@ -87,7 +89,8 @@ Content-Type    application/json
             "updated_at": "2026-04-08T12:00:00Z"
         },
         "admin_profile": null,
-        "author_profile": null
+        "author_profile": null,
+        "moderator_profile": null
     },
     "tokens": {
         "access": "eyJ...",
@@ -128,7 +131,8 @@ Content-Type    application/json
         "profile": {...},
         "wallet": {...},
         "admin_profile": null,
-        "author_profile": null
+        "author_profile": null,
+        "moderator_profile": null,
     },
     "tokens": {
         "access": "eyJ...",
@@ -200,7 +204,8 @@ None
         "updated_at": "2026-04-08T12:00:00Z"
     },
     "admin_profile": null,
-    "author_profile": null
+    "author_profile": null,
+    "moderator_profile": null
 }
 ```
 #### Error response 401:
@@ -348,6 +353,8 @@ bio                bio content
 - Uses PATCH not PUT — only send fields you want to change
 - Body must be form-data not JSON to support image uploads
 - Pre-populate fields from `/me/` on form load, only send changed fields
+- show_real_name can be toggled by author or admin
+- first_name and last_name are admin only — silently ignored if sent from author side
 
 ---
 
@@ -460,6 +467,8 @@ Authorization     Bearer <access_token>
 - Author profile is created with tier 1 by default
 - Author will need to set their own username and pen name via the author profile update endpoint
 - Contract link is set by admin separately via the author management endpoint
+- first_name and last_name are optional at upgrade time — can be set later via admin author update endpoint
+- show_real_name defaults to false — author or admin can toggle
 
 ---
 
@@ -587,6 +596,70 @@ Authorization    Bearer <access_token>
 
 ---
 
+### Deactivate user
+#### Headers:
+```
+Content-Type    application/json
+Authorization    Bearer <access_token>
+```
+#### Body:
+```json
+{
+    "user_id": 2
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "user@example.com has been deactivated successfully"
+}
+```
+#### Error responses:
+```json
+403: {"error": "You do not have permission to perform this action"}
+400: {"error": "user_id is required"}
+400: {"error": "You cannot deactivate your own account"}
+404: {"error": "User not found"}
+```
+#### Notes:
+- Any is_staff user can deactivate users
+- Deactivated users cannot log in and existing tokens stop working
+- All user data is preserved — use reactivate to restore access
+- Cannot deactivate your own account
+
+---
+
+### Reactivate user
+#### Headers:
+```
+Content-Type    application/json
+Authorization    Bearer <access_token>
+```
+#### Body:
+```json
+{
+    "user_id": 2
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "user@example.com has been reactivated successfully"
+}
+```
+#### Error responses:
+```json
+403: {"error": "You do not have permission to perform this action"}
+400: {"error": "user_id is required"}
+404: {"error": "User not found"}
+```
+#### Notes:
+- Any is_staff user can reactivate users
+- Restores full account access immediately
+- Future enhancement: will trigger a mandatory password reset email on reactivation
+
+---
+
 ## Debug Endpoints
 
 | Method | Endpoint | Description | Auth Required |
@@ -644,7 +717,8 @@ Content-Type    application/json
         "profile": {...},
         "wallet": {...},
         "admin_profile": {...},
-        "author_profile": null
+        "author_profile": null,
+        "moderator_profile": null
     },
     "tokens": {
         "access": "eyJ...",
@@ -655,6 +729,7 @@ Content-Type    application/json
         "is_superuser": true,
         "has_admin_profile": true,
         "has_author_profile": false,
+        "had_moderator_profile": false,
         "default_login_role": "reader"
     }
 }
@@ -698,6 +773,7 @@ None
         "is_superuser": true,
         "has_admin_profile": true,
         "has_author_profile": false,
+        "has_moderator_profile": false,
         "default_login_role": "reader"
     }
 }
@@ -711,4 +787,3 @@ None
 #### Notes:
 - Use this to verify which user a token belongs to
 - No tokens returned — use debug/login/ if you need fresh tokens
-- Add has_moderator_profile to debug block when moderator profile is built

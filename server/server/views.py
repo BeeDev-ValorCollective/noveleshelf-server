@@ -59,7 +59,7 @@ def debug_me(request):
             'is_superuser': request.user.is_superuser,
             'has_admin_profile': hasattr(request.user, 'admin_profile'),
             'has_author_profile': hasattr(request.user, 'author_profile'),
-            'has_moderator_profile': hasattr(user, 'moderator_profile'),
+            'has_moderator_profile': hasattr(request.user, 'moderator_profile'),
             'default_login_role': request.user.default_login_role,
         }
     })
