@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'storages',
     'django_crontab',
     'userApp.apps.UserappConfig',
+    # 'booksApp.apps.BooksappConfig',
 ]
 
 MIDDLEWARE = [
