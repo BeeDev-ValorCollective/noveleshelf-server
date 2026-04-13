@@ -6,8 +6,18 @@ from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from userApp.serializers import UserSerializer
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def api_root(request):
+    return Response({
+        'name': 'NovelShelf API',
+        'version': '1.0.0',
+        'status': 'online',
+    })
+
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def health_check(request):
     return Response({"status": "ok", "message": "Django is talking!"})
 
