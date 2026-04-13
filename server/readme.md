@@ -12,6 +12,8 @@ To start it will not include the contact form but may incorporate it at a later 
 |--------|----------|-------------|---------------|
 | GET | /admin | Django admin | Yes |
 | | | | |
+| GET | /api/public/authors/ | [Public authors list](#public-authors) | No |
+| | | | |
 | POST | /api/auth/register/ | [Create User](#register) | No |
 | POST | /api/auth/login/ | [Login](#login) | No |
 | GET | /api/auth/me/ | [User details](#me) | Yes |
@@ -42,6 +44,7 @@ To start it will not include the contact form but may incorporate it at a later 
 - On logout: call `/logout/`, delete both tokens from storage, redirect to login
 - Never store access token in `localStorage` — use `sessionStorage` (web) or `SecureStore` (Expo)
 - Refresh token expires after 7 days — user will need to log in again after that
+- Always display role context alongside usernames in UI e.g. "QueenBee (Author)" not just "QueenBee" to avoid confusion across profile types
 
 ### Login Routing
 - Single role user (reader only) → redirect to app.noveleshelf.com
@@ -53,6 +56,38 @@ To start it will not include the contact form but may incorporate it at a later 
 ---
 
 ## Endpoint Details
+
+### Public authors
+#### Headers:
+```
+None
+```
+#### Body:
+```
+None
+```
+#### Success response 200:
+```json
+{
+    "count": 1,
+    "authors": [
+        {
+            "author_username": "TestAuthor",
+            "display_name": "Test Pen Name",
+            "pen_name": "Test Pen Name",
+            "bio": "This is my author bio",
+            "avatar_url": "/media/avatars/author/default.png",
+            "tier": 1
+        }
+    ]
+}
+```
+#### Notes:
+- No auth required — public facing endpoint for Vite website
+- Only returns authors where is_publicly_visible is True and account is active
+- display_name shows real name if show_real_name is True and first_name exists
+- Falls back to pen_name then author_username if real name not available
+- Does not expose email, date of birth, contract link or any sensitive data
 
 ### Register
 #### Headers:
