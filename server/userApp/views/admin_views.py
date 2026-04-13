@@ -183,6 +183,7 @@ def admin_update_author(request):
     first_name = request.data.get('first_name')
     last_name = request.data.get('last_name')
     show_real_name = request.data.get('show_real_name')
+    is_publicly_visible = request.data.get('is_publicly_visible')
 
     if tier is not None:
         try:
@@ -210,6 +211,9 @@ def admin_update_author(request):
 
     if show_real_name is not None:
         author_profile.show_real_name = show_real_name
+    
+    if is_publicly_visible is not None:
+        author_profile.is_publicly_visible = is_publicly_visible
     
     author_profile.save()
     

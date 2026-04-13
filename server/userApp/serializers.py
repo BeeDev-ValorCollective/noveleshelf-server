@@ -54,7 +54,7 @@ class UserSerializer(serializers.ModelSerializer):
 class AuthorProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = AuthorProfile
-        fields = ['author_username', 'pen_name', 'first_name', 'last_name', 'show_real_name', 'bio', 'tier', 'contract_link', 'avatar_url', 'created_at']
+        fields = ['author_username', 'pen_name', 'first_name', 'last_name', 'show_real_name', 'is_publicly_visible', 'bio', 'tier', 'contract_link', 'avatar_url', 'created_at']
 
 class ModeratorProfileSerializer(serializers.ModelSerializer):
     class Meta:
