@@ -20,6 +20,9 @@ The main backend API for the NovelShelf platform. Handles authentication, user m
 - MySQL database
 - JWT authentication
 
+#### Shell access:
+source /home/noveleshelf/virtualenv/public_html/api/3.10/bin/activate && cd /home/noveleshelf/public_html/api
+
 ### Mail Server — [Documentation](mailServer/readme.md)
 Contact form email service. May be replaced by the main Django backend at a later date.
 
