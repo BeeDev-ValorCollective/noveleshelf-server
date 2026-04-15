@@ -3,7 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
-from ..serializers import AdminProfileSerializer, AuthorProfileSerializer, ModeratorProfileSerializer
+from ..serializers import AdminProfileSerializer, AuthorProfileSerializer, ModeratorProfileSerializer, UserSerializer
 from ..models import AdminProfile, AuthorProfile, ModeratorProfile
 
 User = get_user_model()
@@ -292,4 +292,56 @@ def reactivate_user(request):
     
     return Response({
         'message': f'{user.email} has been reactivated successfully'
+    })
+
+from django.db.models import Q
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def list_users(request):
+    if not request.user.is_staff:
+        return Response(
+            {'error': 'You do not have permission to perform this action'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+    
+    role = request.query_params.get('role')
+    is_active = request.query_params.get('is_active')
+    
+    users = User.objects.all()
+    
+    if role == 'author':
+        users = users.filter(author_profile__isnull=False)
+    elif role == 'admin':
+        users = users.filter(admin_profile__isnull=False)
+    elif role == 'moderator':
+        users = users.filter(moderator_profile__isnull=False)
+    elif role == 'reader':
+        users = users.filter(
+            author_profile__isnull=True,
+            admin_profile__isnull=True,
+            moderator_profile__isnull=True
+        )
+    
+    if is_active is not None:
+        is_active_bool = is_active.lower() == 'true'
+        users = users.filter(is_active=is_active_bool)
+    
+    # pagination
+    page_size = 20
+    page = int(request.query_params.get('page', 1))
+    start = (page - 1) * page_size
+    end = start + page_size
+    
+    total = users.count()
+    users_page = users[start:end]
+    
+    return Response({
+        'count': total,
+        'page': page,
+        'page_size': page_size,
+        'total_pages': (total + page_size - 1) // page_size,
+        'next': f'?page={page + 1}' if end < total else None,
+        'previous': f'?page={page - 1}' if page > 1 else None,
+        'results': UserSerializer(users_page, many=True).data
     })

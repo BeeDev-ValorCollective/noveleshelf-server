@@ -33,6 +33,7 @@ Handles all authentication, user profiles, and admin user management.
 | PATCH | /api/admin/users/author-update/ | [Admin update author](#admin-author-profile-update) | Yes |
 | POST | /api/admin/users/deactivate-user/ | [Deactivate user](#deactivate-user) | Yes |
 | POST | /api/admin/users/reactivate-user/ | [Reactivate user](#reactivate-user) | Yes |
+| GET | /api/admin/users/list/ | [List users](#list-users) | Yes |
 
 ---
 
@@ -704,6 +705,61 @@ Authorization     Bearer <access_token>
 - Any is_staff user can reactivate users
 - Restores full account access immediately
 - Future enhancement: will trigger a mandatory password reset email on reactivation
+
+---
+
+### List users
+#### Headers:
+```
+Authorization    Bearer <access_token>
+```
+#### Body:
+```
+None
+```
+#### Query params (all optional):
+```
+?role=         filter by role: reader, author, admin, moderator
+?is_active=    filter by active status: true, false
+?page=         page number, defaults to 1
+```
+#### Success response 200:
+```json
+{
+    "count": 10,
+    "page": 1,
+    "page_size": 20,
+    "total_pages": 1,
+    "next": null,
+    "previous": null,
+    "results": [
+        {
+            "id": 1,
+            "email": "user@example.com",
+            "date_of_birth": "1990-01-01",
+            "default_login_role": "reader",
+            "profile": {...},
+            "wallet": {...},
+            "admin_profile": null,
+            "author_profile": null,
+            "moderator_profile": null
+        }
+    ]
+}
+```
+#### Error response 403:
+```json
+{
+    "error": "You do not have permission to perform this action"
+}
+```
+#### Notes:
+- Admin access required
+- Returns all users by default — use query params to filter
+- `role=reader` returns users with no author, admin or moderator profile
+- `is_active=false` returns deactivated users
+- Results are paginated at 20 per page
+- Use `page` param to navigate through results
 
 ---
 
