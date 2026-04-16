@@ -37,13 +37,13 @@ Contact form email service. May be replaced by the main Django backend at a late
 ```bash
 cd server
 python -m venv venv
-source venv/bin/activate  # Mac/Linux
+source venv/bin/activate  # Mac/Linux (windows = venv/Scripts/activate)
 pip install -r requirements.txt
 touch .env      # fill in your values
 python manage.py migrate
 python manage.py runserver
 ```
-
+/home/noveleshelf/public_html/api/manage.py migrate --fake
 ---
 
 ## Environment Variables

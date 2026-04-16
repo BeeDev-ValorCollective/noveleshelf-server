@@ -92,6 +92,9 @@ DATABASES = {
         'PASSWORD': env('DB_PASSWORD'),
         'HOST': env('DB_HOST', default='localhost'),
         'PORT': '3306',
+        'OPTIONS': {
+            'init_command': "SET FOREIGN_KEY_CHECKS=0; SET sql_mode='STRICT_TRANS_TABLES';",
+        }
     }
 }
 
