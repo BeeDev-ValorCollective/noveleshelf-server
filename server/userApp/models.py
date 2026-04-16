@@ -92,6 +92,7 @@ class AuthorProfile(models.Model):
     bio = models.TextField(null=True, blank=True)
     tier = models.IntegerField(default=1)
     contract_link = models.URLField(null=True, blank=True)
+    is_publicly_visible = models.BooleanField(default=False)
     avatar_url = models.ImageField(
         upload_to='avatars/author/',
         null=True,
