@@ -5,6 +5,8 @@ from rest_framework import status
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from userApp.serializers import UserSerializer
+from django.core.mail import send_mail
+from django.conf import settings
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -15,13 +17,26 @@ def api_root(request):
         'status': 'online',
     })
 
-
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def health_check(request):
     return Response({"status": "ok", "message": "Django is talking!"})
 
-
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def test_email(request):
+    try:
+        send_mail(
+            subject='NovelShelf Email Test',
+            message='If you are reading this the email setup is working correctly.',
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[settings.EMAIL_HOST_USER],
+            fail_silently=False,
+        )
+        return Response({'message': 'Test email sent successfully'})
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def debug_login(request):

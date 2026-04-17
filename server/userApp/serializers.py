@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import UserProfile, UserWallet, AdminProfile, AuthorProfile, ModeratorProfile
+from .models import UserProfile, UserWallet, AdminProfile, AuthorProfile, FreeAuthorProfile, ModeratorProfile, AuthorRequest
 
 User = get_user_model()
 
@@ -42,34 +42,44 @@ class AdminProfileSerializer(serializers.ModelSerializer):
         fields = ['admin_username', 'is_super_admin', 'avatar_url', 'created_at']
 
 
-class UserSerializer(serializers.ModelSerializer):
-    profile = UserProfileSerializer(read_only=True)
-    wallet = UserWalletSerializer(read_only=True)
-    admin_profile = AdminProfileSerializer(read_only=True)
-
-    class Meta:
-        model = User
-        fields = ['id', 'email', 'date_of_birth','default_login_role', 'profile', 'wallet', 'admin_profile']
-
 class AuthorProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = AuthorProfile
-        fields = ['author_username', 'pen_name', 'first_name', 'last_name', 'show_real_name', 'is_publicly_visible', 'bio', 'tier', 'contract_link', 'avatar_url', 'created_at']
+        fields = ['author_username', 'pen_name', 'first_name', 'last_name', 'show_real_name', 'is_publicly_visible', 'is_active', 'bio', 'tier', 'contract_link', 'avatar_url', 'created_at']
+
+
+class FreeAuthorProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FreeAuthorProfile
+        fields = ['author_username', 'pen_name', 'first_name', 'last_name', 'show_real_name', 'is_publicly_visible', 'is_active', 'bio', 'avatar_url', 'created_at']
+
 
 class ModeratorProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = ModeratorProfile
         fields = ['mod_username', 'avatar_url', 'assigned_by', 'created_at']
 
+
+class AuthorRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AuthorRequest
+        fields = ['id', 'request_type', 'status', 'bio', 'genre_interest', 'writing_sample_link', 'reader_notes', 'created_at', 'updated_at']
+
+
+class AuthorRequestAdminSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AuthorRequest
+        fields = ['id', 'user', 'request_type', 'status', 'bio', 'genre_interest', 'writing_sample_link', 'admin_notes', 'reader_notes', 'contact_attempted', 'created_at', 'updated_at']
+
+
 class UserSerializer(serializers.ModelSerializer):
     profile = UserProfileSerializer(read_only=True)
     wallet = UserWalletSerializer(read_only=True)
     admin_profile = AdminProfileSerializer(read_only=True)
     author_profile = AuthorProfileSerializer(read_only=True)
+    free_author_profile = FreeAuthorProfileSerializer(read_only=True)
     moderator_profile = ModeratorProfileSerializer(read_only=True)
 
     class Meta:
         model = User
-        fields = ['id', 'email', 'date_of_birth', 'default_login_role', 'profile', 'wallet', 'admin_profile', 'author_profile', 'moderator_profile']
-
-
+        fields = ['id', 'email', 'date_of_birth', 'default_login_role', 'is_verified', 'profile', 'wallet', 'admin_profile', 'author_profile', 'free_author_profile', 'moderator_profile']

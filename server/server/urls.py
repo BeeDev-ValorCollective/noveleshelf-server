@@ -7,6 +7,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', views.api_root),
     path('api/debug/health/', views.health_check),
+    path('api/debug/test-email/', views.test_email),
     path('api/debug/login/', views.debug_login),
     path('api/debug/me/', views.debug_me),
     path('api/public/', include('userApp.public_urls')),

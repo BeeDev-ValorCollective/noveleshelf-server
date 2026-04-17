@@ -62,7 +62,7 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
 }
 CRONJOBS = [
-    ('0 0 * * *', 'apps.currency.cron.grant_daily_black_ink'),
+    ('0 0 * * *', 'cron.user_cron.deactivate_unverified_users'),
 ]
 
 ROOT_URLCONF = 'server.urls'
@@ -84,6 +84,11 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'server.wsgi.application'
 
+db_init_command = env('DB_INIT_COMMAND', default='')
+db_options = {}
+if db_init_command:
+    db_options['init_command'] = db_init_command
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
@@ -92,9 +97,7 @@ DATABASES = {
         'PASSWORD': env('DB_PASSWORD'),
         'HOST': env('DB_HOST', default='localhost'),
         'PORT': '3306',
-        'OPTIONS': {
-            'init_command': "SET FOREIGN_KEY_CHECKS=0; SET sql_mode='STRICT_TRANS_TABLES';",
-        }
+        'OPTIONS': db_options,
     }
 }
 
@@ -121,7 +124,7 @@ TIME_ZONE = 'US/Eastern'
 USE_I18N = True
 USE_TZ = True
 
-
+# Static/Media 
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
@@ -130,3 +133,13 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Email
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = env('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD')
+DEFAULT_FROM_EMAIL = env('EMAIL_HOST_USER')
+FRONTEND_URL = env('FRONTEND_URL', default='http://localhost:5173')

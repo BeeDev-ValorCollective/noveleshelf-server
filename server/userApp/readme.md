@@ -20,6 +20,8 @@ Handles all authentication, user profiles, and admin user management.
 | GET | /api/auth/me/ | [User details](#me) | Yes |
 | POST | /api/auth/logout/ | [Logout](#logout) | Yes |
 | POST | /api/auth/refresh/ | [Refresh Token](#refresh) | Yes - refresh token in body |
+| GET | /api/auth/verify-email/ | [Verify email address](#verify-email) | No |
+| POST | /api/auth/resend-verification/ | [Resend verification email](#resend-verification) | Yes |
 | | | | |
 | PATCH | /api/user/profile/update/ | [Update reader profile](#update-profile) | Yes |
 | PATCH | /api/user/default-role/update/ | [Update default login role](#update-default-login-role) | Yes |
@@ -263,6 +265,67 @@ Content-Type    application/json
 ```
 
 ---
+
+### Verify email
+#### Headers:
+```
+None
+```
+#### Query params:
+```
+token    the verification token from the email link
+```
+#### Body:
+```
+None
+```
+#### Success response 200:
+```json
+{
+    "message": "Email verified successfully. You now have full access to NovelShelf."
+}
+```
+#### Error responses:
+```json
+400: {"error": "Token is required"}
+400: {"error": "Invalid or expired token"}
+400: {"error": "Token has expired. Please request a new verification email."}
+```
+#### Notes:
+- No auth required — user clicks link from email
+- Token expires after 24 hours
+- Once used token cannot be used again
+- Frontend should call this endpoint when user lands on /verify-email?token=xyz
+
+---
+
+### Resend verification
+#### Headers:
+```
+Authorization    Bearer <access_token>
+```
+#### Body
+```
+None
+```
+#### Success response 200:
+```json
+{
+    "message": "Verification email sent to user@example.com. Please check your inbox."
+}
+```
+#### Error response 400:
+```json
+{
+    "error": "Your email is already verified"
+}
+```
+#### Notes:
+- Auth required — user must be logged in
+- Invalidates any existing unused tokens before sending new one
+- New token expires after 24 hours
+- Use this endpoint for the resend button on the verification reminder page
+
 
 ### Update Profile
 #### Headers:

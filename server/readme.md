@@ -33,6 +33,7 @@ server/
 | GET | / | API status | No |
 | GET | /admin | Django admin | Yes |
 | GET | /api/debug/health/ | Health check | No |
+| GET | /api/debug/test-email/ | Test email sending | No |
 | POST | /api/debug/login/ | Debug login | No |
 | GET | /api/debug/me/ | Debug me | Yes |
 
@@ -59,6 +60,28 @@ None
 #### Notes:
 - No auth required
 - Used to confirm server is running and reachable
+
+---
+
+### Test Email
+#### Headers:
+```
+None
+```
+#### Body:
+```
+None
+```
+#### Success response 200:
+```json
+{
+    "message": "Test email sent successfully"
+}
+```
+#### Notes:
+- No auth required
+- Used to confirm email is working
+- Remove on production after tested
 
 ---
 
