@@ -3,7 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth import get_user_model, authenticate
+from django.contrib.auth import get_user_model
 from ..serializers import RegisterSerializer, UserSerializer
 from utils.email_utils import send_verification_email
 from userApp.models import EmailVerificationToken
@@ -31,7 +31,7 @@ def register(request):
                 'access': str(refresh.access_token),
                 'refresh': str(refresh),
             },
-            'message': 'Account created. Please check your email to verify your account.'
+            'message': f'Account created. Please check {user.email} to verify your account.'
         }, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -47,13 +47,42 @@ def login(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    user = authenticate(request, username=email, password=password)
-
-    if not user:
+    try:
+        user = User.objects.get(email=email)
+    except User.DoesNotExist:
         return Response(
             {'error': 'Invalid credentials'},
             status=status.HTTP_401_UNAUTHORIZED
         )
+
+    if not user.check_password(password):
+        return Response(
+            {'error': 'Invalid credentials'},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+
+    if not user.is_active:
+        if not user.is_verified:
+            return Response(
+                {'error': 'Your account has been deactivated due to unverified email. Please use the resend verification option to reactivate your account.'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        return Response(
+            {'error': 'Your account has been deactivated. Please contact support.'},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+
+    if not user.is_verified:
+        days_left = (user.verification_grace_ends - timezone.now()).days
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'user': UserSerializer(user).data,
+            'tokens': {
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+            },
+            'warning': f'Please verify your email. Your account will be deactivated in {days_left} days if not verified.'
+        })
 
     refresh = RefreshToken.for_user(user)
     return Response({
@@ -137,7 +166,7 @@ def resend_verification(request):
     try:
         send_verification_email(request.user)
         return Response({
-            'message': 'Verification email sent. Please check your inbox.'
+            'message': f'Verification email sent to {request.user.email}. Please check your inbox.'
         })
     except Exception as e:
         return Response(

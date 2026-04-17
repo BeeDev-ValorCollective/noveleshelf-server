@@ -17,7 +17,7 @@ Please verify your email address by clicking the link below:
 
 This link expires in 24 hours.
 
-If you did not create an account please ignore this email.
+This email was sent to {user.email}. If you did not create an account please ignore this email.
 
 The NovelShelf Team''',
         from_email=settings.DEFAULT_FROM_EMAIL,
