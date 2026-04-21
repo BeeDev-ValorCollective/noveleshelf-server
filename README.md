@@ -116,3 +116,25 @@ The local `.env` has a date comment at the bottom (`# UPDATED MM/DD/YY`) indicat
   - `Email/Address` — comment local, uncomment client
 
 **Never commit the `.env` file to git — it contains passwords and secret keys.**
+
+### Cron jobs
+Cron jobs are managed via `django-crontab` — do NOT use the cPanel cron job interface.
+
+**On first deployment or when cron jobs change:**
+```bash
+source /home/noveleshelf/virtualenv/public_html/api/3.10/bin/activate && cd /home/noveleshelf/public_html/api
+python manage.py crontab add
+python manage.py crontab show
+```
+
+**Current cron jobs:**
+| Schedule | Job | Description |
+|----------|-----|-------------|
+| Daily at midnight | `cron.user_cron.deactivate_unverified_users` | Deactivates unverified users past 7 day grace period |
+| Sundays at 3am | `cron.user_cron.flush_expired_tokens` | Cleans up expired JWT tokens |
+
+**Notes:**
+- Running `crontab add` removes and re-adds all jobs — this is normal
+- Run `crontab add` after any changes to `CRONJOBS` in `settings.py`
+- Run `crontab show` to confirm jobs are registered
+- New cron functions go in `cron/` folder at the server root
