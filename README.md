@@ -57,3 +57,62 @@ See Google drive for current required variables and create the env file inside `
 - **Auth**: JWT via djangorestframework-simplejwt
 - **Storage**: Local (S3 planned)
 - **Email**: Google Workspace SMTP (planned)
+
+---
+
+## Deployment
+
+### Repository structure note
+The git repository (`repositories/noveleshelf-server/`) contains both the Django API and mailServer. The Django app runs from `public_html/api/`. After a git pull the relevant files need to be copied from the repository to the site folder.
+
+### New code changes (no database changes)
+1. `git pull` in `repositories/noveleshelf-server/`
+2. Copy relevant files from `repositories/noveleshelf-server/server/` to `public_html/api/`
+3. Restart app in cPanel Python app panel
+
+### New tables
+1. Export structure only from MySQL Workbench — select only new tables
+2. Find and replace `utf8mb4_0900_ai_ci` with `utf8mb4_unicode_ci` in exported file
+3. In phpMyAdmin import tab — uncheck **Enable foreign key checks**
+4. Import file
+5. SSH into server and run:
+```bash
+source /home/noveleshelf/virtualenv/public_html/api/3.10/bin/activate && cd /home/noveleshelf/public_html/api
+python manage.py migrate --fake
+python manage.py migrate
+```
+6. Copy relevant files from repository to site folder
+7. Restart app in cPanel Python app panel
+
+### Changes to existing tables
+1. Write ALTER statements in `alterations[nn].sql` file
+2. Run in phpMyAdmin SQL tab against the live database
+3. SSH into server and run fake migrate for affected migrations
+4. Run `python manage.py migrate`
+5. Copy relevant files from repository to site folder
+6. Restart app in cPanel Python app panel
+
+### If migration conflicts (duplicate column/table errors)
+- Fake the specific conflicting migration:
+```bash
+python manage.py migrate --fake userApp [migration_name]
+```
+- Then run `python manage.py migrate` again
+- Repeat until all migrations show `[X]` in `showmigrations`
+
+### Environment variables
+The `.env` file is not tracked in git (`.gitignore`) and must be managed manually on the server.
+
+The local `.env` has a date comment at the bottom (`# UPDATED MM/DD/YY`) indicating when it was last updated.
+
+**On each deployment check:**
+- Compare the date on the server `.env` with the local `.env`
+- If the server `.env` date is older — update it
+- The `.env` is organized in local/server pairs — comment out local values and uncomment server values
+- Sections to swap:
+  - `DEBUG`
+  - `Database` — comment local, uncomment server
+  - `SITE_URL` — comment local, uncomment server
+  - `Email/Address` — comment local, uncomment client
+
+**Never commit the `.env` file to git — it contains passwords and secret keys.**
