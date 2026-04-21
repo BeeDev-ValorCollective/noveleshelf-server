@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     'storages',
     'django_crontab',
     'userApp.apps.UserappConfig',
+    'cronApp.apps.CronappConfig',
     # 'booksApp.apps.BooksappConfig',
 ]
 
@@ -144,3 +145,29 @@ EMAIL_HOST_USER = env('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default=env('EMAIL_HOST_USER'))
 FRONTEND_URL = env('FRONTEND_URL', default='http://localhost:5173')
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'cron_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs/cron.log'),
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'cron': {
+            'handlers': ['cron_file'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+    },
+}
