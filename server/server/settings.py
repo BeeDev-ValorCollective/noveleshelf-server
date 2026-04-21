@@ -63,6 +63,7 @@ SIMPLE_JWT = {
 }
 CRONJOBS = [
     ('0 0 * * *', 'cron.user_cron.deactivate_unverified_users'),
+    ('0 3 * * 0', 'cron.user_cron.flush_expired_tokens'),
 ]
 
 ROOT_URLCONF = 'server.urls'
