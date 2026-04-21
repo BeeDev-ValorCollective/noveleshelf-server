@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth import get_user_model
-from .models import User, UserProfile, UserWallet, AdminProfile, AuthorProfile, FreeAuthorProfile, ModeratorProfile, AuthorRequest, EmailVerificationToken
+from .models import User, UserProfile, UserWallet, AdminProfile, AuthorProfile, FreeAuthorProfile, ModeratorProfile, AuthorRequest, EmailVerificationToken, PasswordResetToken
 
 User = get_user_model()
 
@@ -77,3 +77,4 @@ admin.site.register(FreeAuthorProfile)
 admin.site.register(ModeratorProfile)
 admin.site.register(AuthorRequest, AuthorRequestAdmin)
 admin.site.register(EmailVerificationToken)
+admin.site.register(PasswordResetToken)

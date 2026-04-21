@@ -22,12 +22,16 @@ Handles all authentication, user profiles, and admin user management.
 | POST | /api/auth/refresh/ | [Refresh Token](#refresh) | Yes - refresh token in body |
 | GET | /api/auth/verify-email/ | [Verify email address](#verify-email) | No |
 | POST | /api/auth/resend-verification/ | [Resend verification email](#resend-verification) | Yes |
+| POST | /api/auth/forgot-password/ | Request password reset | No |
+| POST | /api/auth/reset-password/ | Reset password with token | No |
 | | | | |
 | PATCH | /api/user/profile/update/ | [Update reader profile](#update-profile) | Yes |
 | PATCH | /api/user/default-role/update/ | [Update default login role](#update-default-login-role) | Yes |
 | PATCH | /api/user/admin-profile/update/ | [Update admin profile](#update-admin-profile) | Yes |
 | PATCH | /api/user/author-profile/update/ | [Update author profile](#update-author-profile-author-side) | Yes |
 | PATCH | /api/user/moderator-profile/update/ | [Update moderator profile](#update-moderator-profile) | Yes |
+| POST | /api/user/change-password/ | [Change password](#change-password) | Yes |
+| POST | /api/user/change-email/ | [Change email](#change-email) | Yes |
 | | | | |
 | POST | /api/admin/users/author-upgrade/ | [Upgrade user to author](#upgrade-to-author) | Yes |
 | POST | /api/admin/users/admin-upgrade/ | [Upgrade user to admin](#upgrade-to-admin) | Yes |
@@ -326,6 +330,75 @@ None
 - New token expires after 24 hours
 - Use this endpoint for the resend button on the verification reminder page
 
+---
+
+### Forgot password
+#### Headers:
+```
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "email": "user@example.com"
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "If an account exists with that email you will receive a password reset link shortly."
+}
+```
+#### Error responses:
+```json
+400: {"error": "Email is required"}
+400: {"error": "Your email address is not verified. Please verify your email before resetting your password."}
+500: {"error": "Failed to send reset email. Please try again."}
+```
+#### Notes:
+- No auth required
+- Same response whether email exists or not — prevents email enumeration
+- Invalidates any existing unused reset tokens before sending new one
+- Token expires after 24 hours
+- User must have verified email before requesting reset
+
+---
+
+### Reset password
+#### Headers:
+```
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "token": "eyJ...",
+    "new_password": "newpassword123",
+    "confirm_password": "newpassword123"
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "Password reset successfully. Please log in with your new password."
+}
+```
+#### Error responses:
+```json
+400: {"error": "Token, new password and confirm password are required"}
+400: {"error": "Passwords do not match"}
+400: {"error": "Password must be at least 8 characters"}
+400: {"error": "Invalid or expired reset token"}
+400: {"error": "Reset token has expired. Please request a new password reset."}
+```
+#### Notes:
+- No auth required
+- Token comes from the reset email link
+- All existing tokens blacklisted on success
+- User must log in again after reset
+- Frontend extracts token from URL query param and sends in request body
+
+---
 
 ### Update Profile
 #### Headers:
@@ -519,6 +592,79 @@ Content-Type     application/json
 - Setting to reader is always allowed since every user is a reader
 - Once set the login gate will be skipped and user will be routed directly to this role on login
 - User can always change back to reader or any other role they have
+
+---
+
+### Change password
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "current_password": "currentpassword",
+    "new_password": "newpassword123",
+    "confirm_password": "newpassword123"
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "Password changed successfully. Please log in again."
+}
+```
+#### Error responses:
+```json
+400: {"error": "Current password, new password and confirm password are required"}
+400: {"error": "Current password is incorrect"}
+400: {"error": "New passwords do not match"}
+400: {"error": "New password must be at least 8 characters"}
+400: {"error": "New password must be different from current password"}
+```
+#### Notes:
+- All existing tokens are blacklisted on success
+- User must log in again after changing password
+
+---
+
+### Change email
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "new_email": "newemail@example.com",
+    "password": "yourpassword"
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "Email changed successfully. Please verify your new email address at newemail@example.com. You have been logged out."
+}
+```
+#### Error responses:
+```json
+400: {"error": "New email and password are required"}
+400: {"error": "Password is incorrect"}
+400: {"error": "New email must be different from current email"}
+400: {"error": "Email already in use"}
+```
+#### Notes:
+- Password confirmation required for security
+- `is_verified` resets to False on email change
+- Verification email sent to new address automatically
+- All existing tokens blacklisted on success
+- User must log in again and verify new email
+- Grace period resets to 7 days from change date
+
+#### Planned security enhancement:
+- On email change a notification email will be sent to the old address with an option to cancel/revert the change in case of unauthorized access
 
 ---
 

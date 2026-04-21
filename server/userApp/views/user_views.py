@@ -3,9 +3,13 @@ from rest_framework.decorators import api_view, permission_classes, parser_class
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 from django.contrib.auth import get_user_model
 from ..serializers import UserProfileSerializer, AdminProfileSerializer, AuthorProfileSerializer, ModeratorProfileSerializer
 from ..models import UserProfile, AdminProfile, AuthorProfile, ModeratorProfile
+from utils.email_utils import send_verification_email
+from django.utils import timezone
+from datetime import timedelta
 
 User = get_user_model()
 
@@ -198,4 +202,112 @@ def update_default_role(request):
     return Response({
         'message': f'Default login role updated to {role}',
         'default_login_role': request.user.default_login_role
+    })
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    current_password = request.data.get('current_password')
+    new_password = request.data.get('new_password')
+    confirm_password = request.data.get('confirm_password')
+
+    if not current_password or not new_password or not confirm_password:
+        return Response(
+            {'error': 'Current password, new password and confirm password are required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if not request.user.check_password(current_password):
+        return Response(
+            {'error': 'Current password is incorrect'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if new_password != confirm_password:
+        return Response(
+            {'error': 'New passwords do not match'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if len(new_password) < 8:
+        return Response(
+            {'error': 'New password must be at least 8 characters'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if current_password == new_password:
+        return Response(
+            {'error': 'New password must be different from current password'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # change password
+    request.user.set_password(new_password)
+    request.user.save()
+
+    # blacklist all existing tokens
+    try:
+        tokens = OutstandingToken.objects.filter(user=request.user)
+        for token in tokens:
+            BlacklistedToken.objects.get_or_create(token=token)
+    except Exception as e:
+        print(f'Token blacklist error: {e}')
+
+    return Response({
+        'message': 'Password changed successfully. Please log in again.'
+    })
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def change_email(request):
+    new_email = request.data.get('new_email')
+    password = request.data.get('password')
+
+    if not new_email or not password:
+        return Response(
+            {'error': 'New email and password are required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if not request.user.check_password(password):
+        return Response(
+            {'error': 'Password is incorrect'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if new_email == request.user.email:
+        return Response(
+            {'error': 'New email must be different from current email'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # check if email already in use
+    if User.objects.filter(email=new_email).exists():
+        return Response(
+            {'error': 'Email already in use'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # update email and reset verification
+    request.user.email = new_email
+    request.user.is_verified = False
+    request.user.verification_grace_ends = timezone.now() + timedelta(days=7)
+    request.user.save()
+
+    # blacklist all existing tokens
+    try:
+        tokens = OutstandingToken.objects.filter(user=request.user)
+        for token in tokens:
+            BlacklistedToken.objects.get_or_create(token=token)
+    except Exception as e:
+        print(f'Token blacklist error: {e}')
+
+    # send verification email to new address
+    try:
+        send_verification_email(request.user)
+    except Exception as e:
+        print(f'Verification email failed: {e}')
+
+    return Response({
+        'message': f'Email changed successfully. Please verify your new email address at {new_email}. You have been logged out.'
     })

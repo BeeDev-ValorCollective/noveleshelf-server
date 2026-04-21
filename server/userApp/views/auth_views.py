@@ -2,11 +2,11 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.tokens import RefreshToken, OutstandingToken, BlacklistedToken
 from django.contrib.auth import get_user_model
 from ..serializers import RegisterSerializer, UserSerializer
-from utils.email_utils import send_verification_email
-from userApp.models import EmailVerificationToken
+from utils.email_utils import send_verification_email, send_password_reset_email
+from userApp.models import EmailVerificationToken, PasswordResetToken
 from django.utils import timezone
 from ..models import EmailVerificationToken
 
@@ -173,3 +173,113 @@ def resend_verification(request):
             {'error': 'Failed to send verification email. Please try again.'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+    
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def forgot_password(request):
+    email = request.data.get('email')
+
+    if not email:
+        return Response(
+            {'error': 'Email is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        user = User.objects.get(email=email)
+    except User.DoesNotExist:
+        # don't reveal if email exists or not for security
+        return Response({
+            'message': 'If an account exists with that email you will receive a password reset link shortly.'
+        })
+
+    # check if email is verified
+    if not user.is_verified:
+        return Response(
+            {'error': 'Your email address is not verified. Please verify your email before resetting your password.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # invalidate any existing unused reset tokens
+    PasswordResetToken.objects.filter(
+        user=user,
+        is_used=False
+    ).update(is_used=True)
+
+    try:
+        send_password_reset_email(user)
+    except Exception as e:
+        print(f'Password reset email failed: {e}')
+        return Response(
+            {'error': 'Failed to send reset email. Please try again.'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+    return Response({
+        'message': 'If an account exists with that email you will receive a password reset link shortly.'
+    })
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reset_password(request):
+    token = request.data.get('token')
+    new_password = request.data.get('new_password')
+    confirm_password = request.data.get('confirm_password')
+
+    if not token or not new_password or not confirm_password:
+        return Response(
+            {'error': 'Token, new password and confirm password are required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if new_password != confirm_password:
+        return Response(
+            {'error': 'Passwords do not match'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if len(new_password) < 8:
+        return Response(
+            {'error': 'Password must be at least 8 characters'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        reset_token = PasswordResetToken.objects.get(
+            token=token,
+            is_used=False
+        )
+    except PasswordResetToken.DoesNotExist:
+        return Response(
+            {'error': 'Invalid or expired reset token'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if reset_token.expires_at < timezone.now():
+        return Response(
+            {'error': 'Reset token has expired. Please request a new password reset.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    user = reset_token.user
+
+    # set new password
+    user.set_password(new_password)
+    user.save()
+
+    # mark token as used
+    reset_token.is_used = True
+    reset_token.save()
+
+    # blacklist all existing tokens
+    try:
+        tokens = OutstandingToken.objects.filter(user=user)
+        for token in tokens:
+            BlacklistedToken.objects.get_or_create(token=token)
+    except Exception as e:
+        print(f'Token blacklist error: {e}')
+
+    return Response({
+        'message': 'Password reset successfully. Please log in with your new password.'
+    })

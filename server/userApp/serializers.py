@@ -27,7 +27,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
-        fields = ['username', 'avatar_url', 'bio', 'created_at']
+        fields = ['username', 'first_name', 'last_name', 'avatar_url', 'bio', 'created_at']
 
 
 class UserWalletSerializer(serializers.ModelSerializer):

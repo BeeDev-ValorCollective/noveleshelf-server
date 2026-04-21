@@ -7,3 +7,7 @@ UPDATE userApp_user SET is_verified = 1 WHERE is_verified = 0;
 
 -- userApp_authorprofile changes
 ALTER TABLE userApp_authorprofile ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1;
+
+-- userApp_userprofile changes
+ALTER TABLE userApp_userprofile ADD COLUMN first_name varchar(50) NULL;
+ALTER TABLE userApp_userprofile ADD COLUMN last_name varchar(50) NULL;
