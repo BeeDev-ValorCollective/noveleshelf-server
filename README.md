@@ -138,3 +138,36 @@ python manage.py crontab show
 - Run `crontab add` after any changes to `CRONJOBS` in `settings.py`
 - Run `crontab show` to confirm jobs are registered
 - New cron functions go in `cron/` folder at the server root
+
+### Testing cron jobs
+To test a cron job without waiting for the scheduled time:
+
+**Step 1 — Get job hashes:**
+```bash
+python manage.py crontab show
+```
+
+**Step 2 — Set up test conditions (example for deactivate_unverified_users):**
+```bash
+python manage.py shell
+```
+```python
+from userApp.models import User
+from django.utils import timezone
+from datetime import timedelta
+
+user = User.objects.get(email='test@example.com')
+user.verification_grace_ends = timezone.now() - timedelta(days=1)
+user.save()
+exit()
+```
+
+**Step 3 — Run the job manually:**
+```bash
+python manage.py crontab run <hash>
+```
+
+**Step 4 — Verify results:**
+- Check `logs/cron.log` for file log entry
+- Check Django admin → CronApp → Cron logs for database entry
+- Verify expected data changes occurred
