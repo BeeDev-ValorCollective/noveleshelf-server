@@ -11,4 +11,6 @@ urlpatterns = [
     path('change-email/', user_views.change_email),
     path('free-author/upgrade/', user_views.upgrade_to_free_author),
     path('free-author-profile/update/', user_views.update_free_author_profile),
+    path('author-request/submit/', user_views.submit_author_request),
+    path('author-request/my-requests/', user_views.get_my_author_requests),
 ]

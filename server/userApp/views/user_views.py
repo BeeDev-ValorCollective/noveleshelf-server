@@ -5,8 +5,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 from django.contrib.auth import get_user_model
-from ..serializers import UserProfileSerializer, AdminProfileSerializer, AuthorProfileSerializer, ModeratorProfileSerializer, FreeAuthorProfileSerializer
-from ..models import UserProfile, AdminProfile, AuthorProfile, ModeratorProfile, FreeAuthorProfile
+from ..serializers import UserProfileSerializer, AdminProfileSerializer, AuthorProfileSerializer, ModeratorProfileSerializer, FreeAuthorProfileSerializer, AuthorRequestSerializer
+from ..models import UserProfile, AdminProfile, AuthorProfile, ModeratorProfile, FreeAuthorProfile, AuthorRequest
 from utils.email_utils import send_verification_email
 from django.utils import timezone
 from datetime import timedelta
@@ -171,11 +171,17 @@ def update_default_role(request):
             status=status.HTTP_400_BAD_REQUEST
         )
     
-    valid_roles = ['reader', 'author', 'moderator', 'admin']
+    valid_roles = ['reader', 'author', 'moderator', 'admin', 'free_author']
     if role not in valid_roles:
         return Response(
             {'error': f'Invalid role. Must be one of: {", ".join(valid_roles)}'},
             status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    if role == 'free_author' and not hasattr(request.user, 'free_author_profile'):
+        return Response(
+            {'error': 'You do not have a free author profile'},
+            status=status.HTTP_403_FORBIDDEN
         )
     
     if role == 'author' and not hasattr(request.user, 'author_profile'):
@@ -392,4 +398,82 @@ def update_free_author_profile(request):
     return Response({
         'message': 'Free author profile updated successfully',
         'free_author_profile': FreeAuthorProfileSerializer(free_author_profile).data
+    })
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def submit_author_request(request):
+    if not request.user.is_verified:
+        return Response(
+            {'error': 'Please verify your email before submitting an author request'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    request_type = request.data.get('request_type')
+
+    if not request_type:
+        return Response(
+            {'error': 'request_type is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    valid_types = ['new_author', 'new_genre', 'tier_review', 'contract_addendum', 'leave_platform', 'rejoin_platform']
+    if request_type not in valid_types:
+        return Response(
+            {'error': f'Invalid request type. Must be one of: {", ".join(valid_types)}'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # new_author requests only for non paid authors
+    if request_type == 'new_author' and hasattr(request.user, 'author_profile'):
+        return Response(
+            {'error': 'You already have a paid author profile. Use author_change request types instead.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # non new_author requests only for paid authors
+    if request_type != 'new_author' and not hasattr(request.user, 'author_profile'):
+        return Response(
+            {'error': 'You must be a paid author to submit this type of request'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # check for active requests
+    active_statuses = ['pending', 'in_progress']
+    existing_request = AuthorRequest.objects.filter(
+        user=request.user,
+        status__in=active_statuses
+    ).first()
+
+    if existing_request:
+        return Response(
+            {'error': 'You already have an active request. Please wait for it to be resolved before submitting a new one.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    bio = request.data.get('bio')
+    genre_interest = request.data.get('genre_interest')
+    writing_sample_link = request.data.get('writing_sample_link')
+
+    author_request = AuthorRequest.objects.create(
+        user=request.user,
+        request_type=request_type,
+        bio=bio,
+        genre_interest=genre_interest,
+        writing_sample_link=writing_sample_link
+    )
+
+    return Response({
+        'message': 'Your request has been submitted successfully. We will be in touch.',
+        'request': AuthorRequestSerializer(author_request).data
+    }, status=status.HTTP_201_CREATED)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_my_author_requests(request):
+    requests = AuthorRequest.objects.filter(user=request.user).order_by('-created_at')
+    
+    return Response({
+        'count': requests.count(),
+        'requests': AuthorRequestSerializer(requests, many=True).data
     })

@@ -9,4 +9,7 @@ urlpatterns = [
     path('deactivate-user/', admin_views.deactivate_user),
     path('reactivate-user/', admin_views.reactivate_user),
     path('list/', admin_views.list_users),
+    path('author-requests/', admin_views.list_author_requests),
+    path('author-request/update/', admin_views.update_author_request),
+    path('author-request/approve/', admin_views.approve_author_request),
 ]

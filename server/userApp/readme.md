@@ -32,8 +32,10 @@ Handles all authentication, user profiles, and admin user management.
 | PATCH | /api/user/moderator-profile/update/ | [Update moderator profile](#update-moderator-profile) | Yes |
 | POST | /api/user/change-password/ | [Change password](#change-password) | Yes |
 | POST | /api/user/change-email/ | [Change email](#change-email) | Yes |
-| POST | /api/user/free-author/upgrade/ | Upgrade to free author | Yes |
-| PATCH | /api/user/free-author-profile/update/ | Update free author profile | Yes |
+| POST | /api/user/free-author/upgrade/ | [Upgrade to free author](#upgrade-to-free-author) | Yes |
+| PATCH | /api/user/free-author-profile/update/ | [Update free author profile](#update-free-author-profile) | Yes |
+| POST | /api/user/author-request/submit/ | [Submit author request](#submit-author-request) | Yes |
+| GET | /api/user/author-request/my-requests/ | [Get my author requests](#get-my-author-requests) | Yes |
 | | | | |
 | POST | /api/admin/users/author-upgrade/ | [Upgrade user to author](#upgrade-to-author) | Yes |
 | POST | /api/admin/users/admin-upgrade/ | [Upgrade user to admin](#upgrade-to-admin) | Yes |
@@ -42,6 +44,9 @@ Handles all authentication, user profiles, and admin user management.
 | POST | /api/admin/users/deactivate-user/ | [Deactivate user](#deactivate-user) | Yes |
 | POST | /api/admin/users/reactivate-user/ | [Reactivate user](#reactivate-user) | Yes |
 | GET | /api/admin/users/list/ | [List users](#list-users) | Yes |
+| GET | /api/admin/users/author-requests/ | [List all author requests](#list-author-requests) | Yes |
+| PATCH | /api/admin/users/author-request/update/ | [Update author request](#update-author-request) | Yes |
+| POST | /api/admin/users/author-request/approve/ | [Approve author request](#approve-author-request) | Yes |
 
 ---
 
@@ -588,12 +593,14 @@ Content-Type     application/json
 403: {"error": "You do not have an author profile"}
 403: {"error": "You do not have a moderator profile"}
 403: {"error": "You do not have an admin profile"}
+403: {"error": "You do not have a free author profile"}
 ```
 #### Notes:
 - User can only set a role they actually have a profile for
 - Setting to reader is always allowed since every user is a reader
 - Once set the login gate will be skipped and user will be routed directly to this role on login
 - User can always change back to reader or any other role they have
+- Valid roles: reader, free_author, author, moderator, admin
 
 ---
 
@@ -756,6 +763,94 @@ avatar_url         <image file>
 - Uses PATCH not PUT — only send fields you want to change
 - Body must be form-data not JSON to support image uploads
 - Pre-populate fields from `/me/` on form load, only send changed fields
+
+---
+
+### Submit author request
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "request_type": "new_author",
+    "bio": "I am a passionate writer",
+    "genre_interest": "Romance/Romantasy",
+    "writing_sample_link": "https://example.com/mywriting"
+}
+```
+#### Success response 201:
+```json
+{
+    "message": "Your request has been submitted successfully. We will be in touch.",
+    "request": {
+        "id": 1,
+        "request_type": "new_author",
+        "status": "pending",
+        "bio": "I am a passionate writer",
+        "genre_interest": "Romance/Romantasy",
+        "writing_sample_link": "https://example.com/mywriting",
+        "reader_notes": null,
+        "created_at": "2026-04-21T12:00:00Z",
+        "updated_at": "2026-04-21T12:00:00Z"
+    }
+}
+```
+#### Error responses:
+```json
+403: {"error": "Please verify your email before submitting an author request"}
+400: {"error": "request_type is required"}
+400: {"error": "Invalid request type. Must be one of: new_author, new_genre, tier_review, contract_addendum, leave_platform, rejoin_platform"}
+400: {"error": "You already have a paid author profile. Use author_change request types instead."}
+400: {"error": "You must be a paid author to submit this type of request"}
+400: {"error": "You already have an active request. Please wait for it to be resolved before submitting a new one."}
+```
+#### Notes:
+- Email must be verified before submitting
+- `new_author` request type is for readers and free authors only
+- All other request types are for paid authors only
+- Only one active request allowed at a time — pending or in_progress
+- `bio`, `genre_interest` and `writing_sample_link` are all optional
+- `writing_sample_link` should be a URL to external writing samples
+
+---
+
+### Get my author requests
+#### Headers:
+```
+Authorization    Bearer <access_token>
+```
+#### Body:
+```
+None
+```
+#### Success response 200:
+```json
+{
+    "count": 1,
+    "requests": [
+        {
+            "id": 1,
+            "request_type": "new_author",
+            "status": "pending",
+            "bio": "I am a passionate writer",
+            "genre_interest": "Romance/Romantasy",
+            "writing_sample_link": "https://example.com/mywriting",
+            "reader_notes": null,
+            "created_at": "2026-04-22T14:00:55.174230-04:00",
+            "updated_at": "2026-04-22T14:00:55.174257-04:00"
+        }
+    ]
+}
+```
+#### Notes:
+- Returns all requests for the logged in user ordered by most recent first
+- `reader_notes` is populated by admin — visible to the user
+- `admin_notes` and `contact_attempted` are not returned — admin only
+- Status values: pending, in_progress, approved, not_at_this_time, cleared
+- `not_at_this_time` and `cleared` statuses mean the request is closed and a new one can be submitted
 
 ---
 
@@ -1060,6 +1155,168 @@ None
 - `is_active=false` returns deactivated users
 - Results are paginated at 20 per page
 - Use `page` param to navigate through results
+
+---
+
+### List author requests
+#### Headers:
+```
+Authorization    Bearer <access_token>
+```
+#### Body:
+```
+None
+```
+#### Query params (all optional):
+```
+status              filter by status: pending, in_progress, approved, not_at_this_time, cleared
+request_type        filter by type: new_author, new_genre, tier_review, contract_addendum, leave_platform, rejoin_platform
+contact_attempted   filter by contact status: true, false
+page                page number, defaults to 1
+#### Success response 200:
+```json
+{
+    "count": 1,
+    "page": 1,
+    "page_size": 20,
+    "total_pages": 1,
+    "next": null,
+    "previous": null,
+    "results": [
+        {
+            "id": 1,
+            "user": 5,
+            "request_type": "new_author",
+            "status": "pending",
+            "bio": "I am a passionate writer",
+            "genre_interest": "Romance/Romantasy",
+            "writing_sample_link": "https://example.com/mywriting",
+            "admin_notes": null,
+            "reader_notes": null,
+            "contact_attempted": false,
+            "created_at": "2026-04-22T14:00:55.174230-04:00",
+            "updated_at": "2026-04-22T14:00:55.174257-04:00"
+        }
+    ]
+}
+```
+#### Error response 403:
+```json
+{"error": "You do not have permission to perform this action"}
+```
+#### Notes:
+- Admin access required
+- Returns full request details including admin_notes and contact_attempted
+- Results paginated at 20 per page
+- Use status=pending to find new requests needing attention
+
+---
+
+### Update author request
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body (all fields optional except request_id):
+```json
+{
+    "request_id": 1,
+    "status": "in_progress",
+    "admin_notes": "Contacted via email, waiting for response",
+    "reader_notes": "We have received your request and will be in touch shortly",
+    "contact_attempted": true
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "Request updated successfully",
+    "request": {
+        "id": 1,
+        "user": 5,
+        "request_type": "new_author",
+        "status": "in_progress",
+        "bio": "I am a passionate writer",
+        "genre_interest": "Romance/Romantasy",
+        "writing_sample_link": "https://example.com/mywriting",
+        "admin_notes": "Contacted via email, waiting for response",
+        "reader_notes": "We have received your request and will be in touch shortly",
+        "contact_attempted": true,
+        "created_at": "2026-04-22T14:00:55.174230-04:00",
+        "updated_at": "2026-04-22T14:12:30.308735-04:00"
+    }
+}
+```
+#### Error responses:
+```json
+403: {"error": "You do not have permission to perform this action"}
+400: {"error": "request_id is required"}
+400: {"error": "Invalid status. Must be one of: pending, in_progress, not_at_this_time, cleared"}
+400: {"error": "Use the approve-author-request endpoint to approve requests"}
+404: {"error": "Request not found"}
+```
+#### Notes:
+- Admin access required
+- Cannot set status to approved through this endpoint — use approve-author-request instead
+- `reader_notes` are visible to the user — use for communication about their request
+- `admin_notes` are internal only — never shown to the user
+- `contact_attempted` should be set to true once admin has reached out to the user
+
+---
+
+### Approve author request
+#### Headers:
+```
+Content-Type      application/json
+Authorization     Bearer <access_token>
+```
+#### Body:
+```json
+{
+    "request_id": 1,
+    "first_name": "Test",
+    "last_name": "Author"
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "user@example.com request has been approved successfully",
+    "request": {
+        "id": 1,
+        "user": 5,
+        "request_type": "new_author",
+        "status": "approved",
+        "bio": "I am a passionate writer",
+        "genre_interest": "Romance/Romantasy",
+        "writing_sample_link": "https://example.com/mywriting",
+        "admin_notes": "Contacted via email, waiting for response",
+        "reader_notes": "We have received your request and will be in touch shortly",
+        "contact_attempted": true,
+        "created_at": "2026-04-22T14:00:55.174230-04:00",
+        "updated_at": "2026-04-22T14:12:30.308735-04:00"
+    }
+}
+```
+#### Error responses:
+```json
+403: {"error": "You do not have permission to perform this action"}
+400: {"error": "request_id is required"}
+400: {"error": "This request has already been approved"}
+400: {"error": "User already has a paid author profile"}
+400: {"error": "first_name and last_name are required to approve a new author request"}
+404: {"error": "Request not found"}
+```
+#### Notes:
+- Admin access required
+- `first_name` and `last_name` required only for `new_author` request type
+- Automatically creates `AuthorProfile` for `new_author` requests
+- `leave_platform` approval sets `author_profile.is_active` and `is_publicly_visible` to False
+- `rejoin_platform` approval sets `author_profile.is_active` back to True
+- Approval email sent to user automatically on approval
+- Email subject and message vary based on request type
+- For other request types (new_genre, tier_review etc.) admin handles changes manually after approval
 
 ---
 
