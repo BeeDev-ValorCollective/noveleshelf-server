@@ -47,6 +47,9 @@ Handles all authentication, user profiles, and admin user management.
 | GET | /api/admin/users/author-requests/ | [List all author requests](#list-author-requests) | Yes |
 | PATCH | /api/admin/users/author-request/update/ | [Update author request](#update-author-request) | Yes |
 | POST | /api/admin/users/author-request/approve/ | [Approve author request](#approve-author-request) | Yes |
+| POST | /api/admin/users/deactivate-author/ | [Deactivate author profile](#deactivate-author) | Yes |
+| POST | /api/admin/users/reactivate-author/ | [Reactivate author profile](#reactivate-author) | Yes |
+| PATCH | /api/admin/users/free-author/update/ | [Admin update free author](#admin-update-free-author) | Yes |
 
 ---
 
@@ -64,27 +67,46 @@ None
 #### Success response 200:
 ```json
 {
-    "count": 1,
+    "count": 2,
     "authors": [
         {
+            "author_type": "paid",
             "author_username": null,
             "display_name": "Lily Bee",
             "pen_name": "Lily Bee",
             "bio": null,
             "avatar_url": "/media/avatars/author/default.png",
             "tier": 2
+        },
+        {
+            "author_type": "free",
+            "author_username": "TestFreeAuthor",
+            "display_name": "Free Pen Name",
+            "pen_name": "Free Pen Name",
+            "bio": "This is my free author bio",
+            "avatar_url": "/media/avatars/free_author/default.png",
+            "tier": "F2R"
         }
     ]
 }
 ```
+#### Query params (optional):
+```
+?=featured=True    show only featured authors: true
+```
 #### Notes:
 - No auth required — public facing endpoint for Vite website
-- Only returns authors where `is_publicly_visible` is `True` and account is active
+- Returns paid authors where `is_publicly_visible` is True and account is active
+- Returns free authors where `is_publicly_visible` is True and account is active
+- Free authors default to `is_publicly_visible = True` on upgrade — they can hide themselves via profile update
+- `author_type` field indicates `paid` or `free`
+- Free authors always show `tier: "F2R"`
 - `display_name` logic:
-  - If `show_real_name` is `True` and `first_name` exists → shows real name
-  - If `show_real_name` is `False` → shows `pen_name`
+  - If `show_real_name` is True and `first_name` exists → shows real name
+  - If `show_real_name` is False → shows `pen_name`
   - If no `pen_name` → falls back to `author_username`
 - Does not expose email, date of birth, contract link or any sensitive data
+- TODO: will include book count per author when booksApp is built
 
 ---
 
@@ -959,6 +981,7 @@ Authorization     Bearer <access_token>
 - `first_name` and `last_name` are admin only
 - `is_publicly_visible` controls whether author appears on public authors page
 - Author updates their own username, pen name, bio, show_real_name and avatar via the author profile update endpoint
+- `is_featured` can be set to feature the author on the platform — payment handled offline
 
 ---
 
@@ -1114,9 +1137,9 @@ None
 ```
 #### Query params (all optional):
 ```
-?role=         filter by role: reader, author, admin, moderator
-?is_active=    filter by active status: true, false
-?page=         page number, defaults to 1
+role         filter by role: reader, author, free_author, any_author, admin, moderator
+is_active    filter by active status: true, false
+page         page number, defaults to 1
 ```
 #### Success response 200:
 ```json
@@ -1151,7 +1174,10 @@ None
 #### Notes:
 - Admin access required
 - Returns all users by default — use query params to filter
-- `role=reader` returns users with no author, admin or moderator profile
+- `role=reader` returns users with no author, free author, admin or moderator profile
+- `role=author` returns paid authors only
+- `role=free_author` returns free authors only
+- `role=any_author` returns both paid and free authors
 - `is_active=false` returns deactivated users
 - Results are paginated at 20 per page
 - Use `page` param to navigate through results
@@ -1317,6 +1343,128 @@ Authorization     Bearer <access_token>
 - Approval email sent to user automatically on approval
 - Email subject and message vary based on request type
 - For other request types (new_genre, tier_review etc.) admin handles changes manually after approval
+
+---
+
+### Deactivate author
+#### Headers:
+```
+Content-Type      application/json
+Authorization     Bearer <access_token>
+```
+#### Body:
+```json
+{
+    "user_id": 2
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "user@example.com author profile has been deactivated. All books will be hidden from new readers."
+}
+```
+#### Error responses:
+```json
+403: {"error": "You do not have permission to perform this action"}
+400: {"error": "user_id is required"}
+400: {"error": "Author is already deactivated"}
+404: {"error": "User not found"}
+404: {"error": "User does not have a paid author profile"}
+```
+#### Notes:
+- Admin access required
+- Sets `author_profile.is_active` and `is_publicly_visible` to False
+- Reader account remains active — user can still log in as a reader
+- Confirmation email sent to author automatically
+- TODO: will also hide all author books when booksApp is built
+
+---
+
+### Reactivate author
+#### Headers:
+```
+Content-Type      application/json
+Authorization     Bearer <access_token>
+```
+#### Body:
+```json
+{
+    "user_id": 2
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "user@example.com author profile has been reactivated. Books visibility must be manually updated."
+}
+```
+#### Error responses:
+```json
+403: {"error": "You do not have permission to perform this action"}
+400: {"error": "user_id is required"}
+400: {"error": "Author is already active"}
+404: {"error": "User not found"}
+404: {"error": "User does not have a paid author profile"}
+```
+#### Notes:
+- Admin access required
+- Sets `author_profile.is_active` to True
+- `is_publicly_visible` remains False — admin manually sets when ready
+- Books remain hidden — admin manually unhides per book as agreed in contract
+- Confirmation email sent to author automatically
+- TODO: book visibility handling will be added when booksApp is built
+
+---
+
+### Admin update free author
+#### Headers:
+```
+Content-Type      application/json
+Authorization     Bearer <access_token>
+```
+#### Body (all fields optional except user_id):
+```json
+{
+    "user_id": 2,
+    "is_featured": true,
+    "is_publicly_visible": true,
+    "is_active": true
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "user@example.com free author profile updated successfully",
+    "free_author_profile": {
+        "author_username": "TestFreeAuthor",
+        "pen_name": "Free Pen Name",
+        "first_name": null,
+        "last_name": null,
+        "show_real_name": false,
+        "is_publicly_visible": true,
+        "is_active": true,
+        "is_featured": true,
+        "bio": "This is my free author bio",
+        "avatar_url": "/media/avatars/free_author/default.png",
+        "created_at": "2026-04-21T12:00:00Z"
+    }
+}
+```
+#### Error responses:
+```json
+403: {"error": "You do not have permission to perform this action"}
+400: {"error": "user_id is required"}
+404: {"error": "User not found"}
+404: {"error": "User does not have a free author profile"}
+```
+#### Notes:
+- Admin access required
+- Only manages is_featured, is_publicly_visible and is_active
+- Free author manages their own username, pen name, bio and avatar
+- is_featured used for featuring authors on the platform — payment handled offline
+- is_active=False hides the free author from public listing
+- TODO: is_active=False will also hide their books when booksApp is built
 
 ---
 

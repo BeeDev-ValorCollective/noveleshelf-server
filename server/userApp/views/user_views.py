@@ -335,7 +335,10 @@ def upgrade_to_free_author(request):
 
     is_paid_author = hasattr(request.user, 'author_profile')
 
-    FreeAuthorProfile.objects.create(user=request.user)
+    FreeAuthorProfile.objects.create(
+        user=request.user,
+        is_publicly_visible=True
+    )
 
     if not is_paid_author:
         request.user.default_login_role = 'free_author'
@@ -366,6 +369,11 @@ def update_free_author_profile(request):
     bio = request.data.get('bio')
     show_real_name = request.data.get('show_real_name')
     avatar = request.data.get('avatar_url')
+
+    is_publicly_visible = request.data.get('is_publicly_visible')
+
+    if is_publicly_visible is not None:
+        free_author_profile.is_publicly_visible = is_publicly_visible
 
     if author_username:
         if FreeAuthorProfile.objects.filter(author_username=author_username).exclude(user=request.user).exists():

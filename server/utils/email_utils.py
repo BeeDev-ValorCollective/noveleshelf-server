@@ -113,3 +113,44 @@ The NovelShelf Team'''
         recipient_list=[user.email],
         fail_silently=False,
     )
+
+def send_author_deactivated_email(user):
+    send_mail(
+        subject='Novel eShelf — Author profile deactivated',
+        message=f'''Hi there,
+
+Your author profile on Novel eShelf has been deactivated as requested.
+
+Your books are no longer visible to new readers. Readers who have already unlocked your chapters will retain access to those chapters.
+
+Please note that your reader account remains active. You can still log in and enjoy reading on Novel eShelf at:
+{settings.FRONTEND_URL}/login
+
+If you wish to reactivate your author profile in the future please submit a rejoin request through your dashboard.
+
+Thank you for being part of Novel eShelf.
+
+The Novel eShelf Team''',
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        fail_silently=False,
+    )
+
+
+def send_author_reactivated_email(user):
+    send_mail(
+        subject='Novel eShelf — Author profile reactivated',
+        message=f'''Welcome back!
+
+Your author profile on Novel eShelf has been reactivated.
+
+You can now log in and access your author dashboard at:
+{settings.FRONTEND_URL}/login
+
+Please note that your books visibility will need to be manually updated by the admin team. Please contact us through the dashboard to discuss which books should be made available again.
+
+The Novel eShelf Team''',
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        fail_silently=False,
+    )

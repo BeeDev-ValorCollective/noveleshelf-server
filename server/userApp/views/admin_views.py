@@ -5,7 +5,8 @@ from rest_framework.response import Response
 from django.contrib.auth import get_user_model
 from ..serializers import AdminProfileSerializer, AuthorProfileSerializer, ModeratorProfileSerializer, UserSerializer, FreeAuthorProfileSerializer, AuthorRequestAdminSerializer, AuthorRequestSerializer
 from ..models import AdminProfile, AuthorProfile, ModeratorProfile, FreeAuthorProfile, AuthorRequest
-from utils.email_utils import send_author_approved_email
+from utils.email_utils import send_author_approved_email, send_author_deactivated_email, send_author_reactivated_email
+from django.db.models import Q
 
 User = get_user_model()
 
@@ -215,6 +216,11 @@ def admin_update_author(request):
     
     if is_publicly_visible is not None:
         author_profile.is_publicly_visible = is_publicly_visible
+
+    is_featured = request.data.get('is_featured')
+
+    if is_featured is not None:
+        author_profile.is_featured = is_featured
     
     author_profile.save()
     
@@ -295,8 +301,6 @@ def reactivate_user(request):
         'message': f'{user.email} has been reactivated successfully'
     })
 
-from django.db.models import Q
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def list_users(request):
@@ -313,6 +317,12 @@ def list_users(request):
     
     if role == 'author':
         users = users.filter(author_profile__isnull=False)
+    elif role == 'free_author':
+        users = users.filter(free_author_profile__isnull=False)
+    elif role == 'any_author':
+        users = users.filter(
+            Q(author_profile__isnull=False) | Q(free_author_profile__isnull=False)
+        )
     elif role == 'admin':
         users = users.filter(admin_profile__isnull=False)
     elif role == 'moderator':
@@ -320,6 +330,7 @@ def list_users(request):
     elif role == 'reader':
         users = users.filter(
             author_profile__isnull=True,
+            free_author_profile__isnull=True,
             admin_profile__isnull=True,
             moderator_profile__isnull=True
         )
@@ -534,3 +545,162 @@ def approve_author_request(request):
         'message': f'{user.email} request has been approved successfully',
         'request': AuthorRequestAdminSerializer(author_request).data
     }, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def deactivate_author(request):
+    if not request.user.is_staff:
+        return Response(
+            {'error': 'You do not have permission to perform this action'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    user_id = request.data.get('user_id')
+
+    if not user_id:
+        return Response(
+            {'error': 'user_id is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response(
+            {'error': 'User not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    if not hasattr(user, 'author_profile'):
+        return Response(
+            {'error': 'User does not have a paid author profile'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    if not user.author_profile.is_active:
+        return Response(
+            {'error': 'Author is already deactivated'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    user.author_profile.is_active = False
+    user.author_profile.is_publicly_visible = False
+    user.author_profile.save()
+
+    # TODO: update book visibility when booksApp is built
+    # deactivate: Book.objects.filter(author_profile=user.author_profile).update(is_visible=False)
+
+    try:
+        send_author_deactivated_email(user)
+    except Exception as e:
+        print(f'Author deactivated email failed: {e}')
+
+    return Response({
+        'message': f'{user.email} author profile has been deactivated. All books will be hidden from new readers.'
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def reactivate_author(request):
+    if not request.user.is_staff:
+        return Response(
+            {'error': 'You do not have permission to perform this action'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    user_id = request.data.get('user_id')
+
+    if not user_id:
+        return Response(
+            {'error': 'user_id is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response(
+            {'error': 'User not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    if not hasattr(user, 'author_profile'):
+        return Response(
+            {'error': 'User does not have a paid author profile'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    if user.author_profile.is_active:
+        return Response(
+            {'error': 'Author is already active'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    user.author_profile.is_active = True
+    user.author_profile.save()
+
+    # TODO: update book visibility when booksApp is built
+    # reactivate: books stay hidden, admin manually unhides per book
+
+    try:
+        send_author_reactivated_email(user)
+    except Exception as e:
+        print(f'Author reactivated email failed: {e}')
+
+    return Response({
+        'message': f'{user.email} author profile has been reactivated. Books visibility must be manually updated.'
+    })
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def admin_update_free_author(request):
+    if not request.user.is_staff:
+        return Response(
+            {'error': 'You do not have permission to perform this action'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    user_id = request.data.get('user_id')
+
+    if not user_id:
+        return Response(
+            {'error': 'user_id is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response(
+            {'error': 'User not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    if not hasattr(user, 'free_author_profile'):
+        return Response(
+            {'error': 'User does not have a free author profile'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    free_author_profile = user.free_author_profile
+
+    is_featured = request.data.get('is_featured')
+    is_publicly_visible = request.data.get('is_publicly_visible')
+    is_active = request.data.get('is_active')
+
+    if is_featured is not None:
+        free_author_profile.is_featured = is_featured
+
+    if is_publicly_visible is not None:
+        free_author_profile.is_publicly_visible = is_publicly_visible
+
+    if is_active is not None:
+        free_author_profile.is_active = is_active
+
+    free_author_profile.save()
+
+    return Response({
+        'message': f'{user.email} free author profile updated successfully',
+        'free_author_profile': FreeAuthorProfileSerializer(free_author_profile).data
+    })

@@ -95,6 +95,7 @@ class AuthorProfile(models.Model):
     last_name = models.CharField(max_length=50, null=True, blank=True)
     show_real_name = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
+    is_featured = models.BooleanField(default=False)
     bio = models.TextField(null=True, blank=True)
     tier = models.IntegerField(default=1)
     contract_link = models.URLField(null=True, blank=True)
@@ -119,6 +120,7 @@ class FreeAuthorProfile(models.Model):
     show_real_name = models.BooleanField(default=False)
     is_publicly_visible = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
+    is_featured = models.BooleanField(default=False)
     bio = models.TextField(null=True, blank=True)
     avatar_url = models.ImageField(
         upload_to='avatars/free_author/',
