@@ -92,7 +92,7 @@ None
 ```
 #### Query params (optional):
 ```
-?=featured=True    show only featured authors: true
+?=featured=true    show only featured authors: true
 ```
 #### Notes:
 - No auth required — public facing endpoint for Vite website
@@ -146,7 +146,9 @@ Content-Type    application/json
         },
         "admin_profile": null,
         "author_profile": null,
-        "moderator_profile": null
+        "moderator_profile": null,
+        "free_author_profile": null,
+        "is_verified": false
     },
     "tokens": {
         "access": "eyJ...",
@@ -188,7 +190,9 @@ Content-Type    application/json
         "wallet": {...},
         "admin_profile": null,
         "author_profile": null,
-        "moderator_profile": null
+        "moderator_profile": null,
+        "free_author_profile": null,
+        "is_verified": true
     },
     "tokens": {
         "access": "eyJ...",
@@ -200,6 +204,8 @@ Content-Type    application/json
 ```json
 400: {"error": "Email and password are required"}
 401: {"error": "Invalid credentials"}
+401: {"error": "Your account has been deactivated due to unverified email. Please use the resend verification option to reactivate your account."}
+401: {"error": "Your account has been deactivated. Please contact support."}
 ```
 
 ---
@@ -261,7 +267,9 @@ None
     },
     "admin_profile": null,
     "author_profile": null,
-    "moderator_profile": null
+    "moderator_profile": null,
+    "free_author_profile": null,
+    "is_verified": true
 }
 ```
 #### Error response 401:
@@ -698,6 +706,7 @@ Content-Type     application/json
 - On email change a notification email will be sent to the old address with an option to cancel/revert the change in case of unauthorized access
 
 ---
+
 ### Upgrade to free author
 #### Headers:
 ```
@@ -1160,7 +1169,9 @@ page         page number, defaults to 1
             "wallet": {...},
             "admin_profile": null,
             "author_profile": null,
-            "moderator_profile": null
+            "moderator_profile": null,
+            "free_author_profile": null,
+            "is_verified": true
         }
     ]
 }
@@ -1199,6 +1210,7 @@ status              filter by status: pending, in_progress, approved, not_at_thi
 request_type        filter by type: new_author, new_genre, tier_review, contract_addendum, leave_platform, rejoin_platform
 contact_attempted   filter by contact status: true, false
 page                page number, defaults to 1
+```
 #### Success response 200:
 ```json
 {
