@@ -22,8 +22,8 @@ Handles all authentication, user profiles, and admin user management.
 | POST | /api/auth/refresh/ | [Refresh Token](#refresh) | Yes - refresh token in body |
 | GET | /api/auth/verify-email/ | [Verify email address](#verify-email) | No |
 | POST | /api/auth/resend-verification/ | [Resend verification email](#resend-verification) | Yes |
-| POST | /api/auth/forgot-password/ | Request password reset | No |
-| POST | /api/auth/reset-password/ | Reset password with token | No |
+| POST | /api/auth/forgot-password/ | [Request password reset](#forgot-password) | No |
+| POST | /api/auth/reset-password/ | [Reset password with token](#reset-password) | No |
 | | | | |
 | PATCH | /api/user/profile/update/ | [Update reader profile](#update-profile) | Yes |
 | PATCH | /api/user/default-role/update/ | [Update default login role](#update-default-login-role) | Yes |
@@ -32,6 +32,8 @@ Handles all authentication, user profiles, and admin user management.
 | PATCH | /api/user/moderator-profile/update/ | [Update moderator profile](#update-moderator-profile) | Yes |
 | POST | /api/user/change-password/ | [Change password](#change-password) | Yes |
 | POST | /api/user/change-email/ | [Change email](#change-email) | Yes |
+| POST | /api/user/free-author/upgrade/ | Upgrade to free author | Yes |
+| PATCH | /api/user/free-author-profile/update/ | Update free author profile | Yes |
 | | | | |
 | POST | /api/admin/users/author-upgrade/ | [Upgrade user to author](#upgrade-to-author) | Yes |
 | POST | /api/admin/users/admin-upgrade/ | [Upgrade user to admin](#upgrade-to-admin) | Yes |
@@ -665,6 +667,95 @@ Content-Type     application/json
 
 #### Planned security enhancement:
 - On email change a notification email will be sent to the old address with an option to cancel/revert the change in case of unauthorized access
+
+---
+### Upgrade to free author
+#### Headers:
+```
+Authorization    Bearer <access_token>
+```
+#### Body:
+```
+None
+```
+#### Success response 201:
+```json
+{
+    "message": "You have been upgraded to free author successfully",
+    "is_also_paid_author": false,
+    "free_author_profile": {
+        "author_username": null,
+        "pen_name": null,
+        "first_name": null,
+        "last_name": null,
+        "show_real_name": false,
+        "is_publicly_visible": false,
+        "is_active": true,
+        "bio": null,
+        "avatar_url": "/media/avatars/free_author/default.png",
+        "created_at": "2026-04-21T12:00:00Z"
+    }
+}
+```
+#### Error responses:
+```json
+403: {"error": "Please verify your email before upgrading to a free author"}
+400: {"error": "You already have a free author profile"}
+```
+#### Notes:
+- Email must be verified before upgrading
+- Any verified reader can upgrade themselves — no admin approval needed
+- `default_login_role` is set to `free_author` unless user already has a paid author profile
+- `is_also_paid_author` flag in response tells frontend which confirmation message to show
+- Frontend should show confirmation dialog before calling this endpoint:
+  - Reader: "As a free author your books will always be free to read. Are you sure?"
+  - Paid author: "You already have a paid author profile. Adding a free author profile means two separate author identities. Are you sure?"
+- Free author books are always free to read — no currency unlock required
+
+---
+
+### Update free author profile
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     multipart/form-data
+```
+#### Body (form-data, all fields optional):
+```
+author_username    new username
+avatar_url         <image file>
+```
+#### Success response 200:
+```json
+{
+    "message": "Free author profile updated successfully",
+    "free_author_profile": {
+        "author_username": "TestFreeAuthor",
+        "pen_name": "Free Pen Name",
+        "first_name": null,
+        "last_name": null,
+        "show_real_name": false,
+        "is_publicly_visible": false,
+        "is_active": true,
+        "bio": "This is my free author bio",
+        "avatar_url": "/media/avatars/free_author/default.png",
+        "created_at": "2026-04-21T12:00:00Z"
+    }
+}
+```
+#### Error responses:
+```json
+403: {"error": "Free author profile not found"}
+400: {"error": "Author username already taken"}
+```
+#### Notes:
+- Only users with a free author profile can access this endpoint
+- Unlike paid author profile, free authors can update their own first and last name
+- `show_real_name` can be toggled by the free author
+- `is_publicly_visible` and `is_active` are admin only — silently ignored if sent
+- Uses PATCH not PUT — only send fields you want to change
+- Body must be form-data not JSON to support image uploads
+- Pre-populate fields from `/me/` on form load, only send changed fields
 
 ---
 

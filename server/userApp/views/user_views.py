@@ -5,8 +5,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 from django.contrib.auth import get_user_model
-from ..serializers import UserProfileSerializer, AdminProfileSerializer, AuthorProfileSerializer, ModeratorProfileSerializer
-from ..models import UserProfile, AdminProfile, AuthorProfile, ModeratorProfile
+from ..serializers import UserProfileSerializer, AdminProfileSerializer, AuthorProfileSerializer, ModeratorProfileSerializer, FreeAuthorProfileSerializer
+from ..models import UserProfile, AdminProfile, AuthorProfile, ModeratorProfile, FreeAuthorProfile
 from utils.email_utils import send_verification_email
 from django.utils import timezone
 from datetime import timedelta
@@ -310,4 +310,86 @@ def change_email(request):
 
     return Response({
         'message': f'Email changed successfully. Please verify your new email address at {new_email}. You have been logged out.'
+    })
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def upgrade_to_free_author(request):
+    if not request.user.is_verified:
+        return Response(
+            {'error': 'Please verify your email before upgrading to a free author'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    if hasattr(request.user, 'free_author_profile'):
+        return Response(
+            {'error': 'You already have a free author profile'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    is_paid_author = hasattr(request.user, 'author_profile')
+
+    FreeAuthorProfile.objects.create(user=request.user)
+
+    if not is_paid_author:
+        request.user.default_login_role = 'free_author'
+        request.user.save()
+
+    return Response({
+        'message': 'You have been upgraded to free author successfully',
+        'is_also_paid_author': is_paid_author,
+        'free_author_profile': FreeAuthorProfileSerializer(request.user.free_author_profile).data
+    }, status=status.HTTP_201_CREATED)
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser])
+def update_free_author_profile(request):
+    if not hasattr(request.user, 'free_author_profile'):
+        return Response(
+            {'error': 'Free author profile not found'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+    
+    free_author_profile = request.user.free_author_profile
+    
+    author_username = request.data.get('author_username')
+    pen_name = request.data.get('pen_name')
+    first_name = request.data.get('first_name')
+    last_name = request.data.get('last_name')
+    bio = request.data.get('bio')
+    show_real_name = request.data.get('show_real_name')
+    avatar = request.data.get('avatar_url')
+
+    if author_username:
+        if FreeAuthorProfile.objects.filter(author_username=author_username).exclude(user=request.user).exists():
+            return Response(
+                {'error': 'Author username already taken'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        free_author_profile.author_username = author_username
+
+    if pen_name is not None:
+        free_author_profile.pen_name = pen_name
+
+    if first_name is not None:
+        free_author_profile.first_name = first_name
+
+    if last_name is not None:
+        free_author_profile.last_name = last_name
+
+    if bio is not None:
+        free_author_profile.bio = bio
+
+    if show_real_name is not None:
+        free_author_profile.show_real_name = show_real_name
+
+    if avatar:
+        free_author_profile.avatar_url = avatar
+
+    free_author_profile.save()
+
+    return Response({
+        'message': 'Free author profile updated successfully',
+        'free_author_profile': FreeAuthorProfileSerializer(free_author_profile).data
     })

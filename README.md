@@ -51,12 +51,19 @@ See Google drive for current required variables and create the env file inside `
 
 ---
 
-## Tech Stack
+## Backend Tech Stack
 - **Backend**: Django 5.x, Django REST Framework
 - **Database**: MySQL / MariaDB
 - **Auth**: JWT via djangorestframework-simplejwt
 - **Storage**: Local (S3 planned)
 - **Email**: Google Workspace SMTP (planned)
+
+---
+
+## Frontend Tech Stack
+- **Web (Vite):** React, React Router, Zustand
+- **Mobile (Expo):** React Native, Expo Router, Zustand, Tamagui
+- **Shared:** Zustand store logic is largely reusable across both platforms
 
 ---
 

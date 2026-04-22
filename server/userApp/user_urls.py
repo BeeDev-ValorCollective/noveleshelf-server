@@ -9,4 +9,6 @@ urlpatterns = [
     path('moderator-profile/update/', user_views.update_moderator_profile),
     path('change-password/', user_views.change_password),
     path('change-email/', user_views.change_email),
+    path('free-author/upgrade/', user_views.upgrade_to_free_author),
+    path('free-author-profile/update/', user_views.update_free_author_profile),
 ]
