@@ -5,10 +5,13 @@ This repository contains the backend services for the NovelShelf platform.
 ---
 
 ## Repository Structure
+```
 noveleshelf-server/
 ├── mailServer/          — Contact form email service
 ├── server/              — Django REST API backend
 └── README.md
+```
+
 ---
 
 ## Services
@@ -39,11 +42,11 @@ cd server
 python -m venv venv
 source venv/bin/activate  # Mac/Linux (windows = venv/Scripts/activate)
 pip install -r requirements.txt
-touch .env      # fill in your values
+touch .env      # copy on drive update local mysql password
 python manage.py migrate
 python manage.py runserver
 ```
-/home/noveleshelf/public_html/api/manage.py migrate --fake
+
 ---
 
 ## Environment Variables
@@ -51,12 +54,19 @@ See Google drive for current required variables and create the env file inside `
 
 ---
 
-## Tech Stack
+## Backend Tech Stack
 - **Backend**: Django 5.x, Django REST Framework
 - **Database**: MySQL / MariaDB
 - **Auth**: JWT via djangorestframework-simplejwt
 - **Storage**: Local (S3 planned)
-- **Email**: Google Workspace SMTP (planned)
+- **Email**: Google Workspace SMTP
+
+---
+
+## Frontend Tech Stack
+- **Web (Vite):** React, React Router, Zustand
+- **Mobile (Expo):** React Native, Expo Router, Zustand, Tamagui
+- **Shared:** Zustand store logic is largely reusable across both platforms
 
 ---
 
@@ -132,6 +142,8 @@ python manage.py crontab show
 |----------|-----|-------------|
 | Daily at midnight | `cron.user_cron.deactivate_unverified_users` | Deactivates unverified users past 7 day grace period |
 | Sundays at 3am | `cron.user_cron.flush_expired_tokens` | Cleans up expired JWT tokens |
+| Daily at 1am | `cron.books_cron.mark_books_not_new` | Marks books older than 30 days as not new |
+| Daily at 1am | `cron.books_cron.mark_chapters_not_new` | Marks chapters older than 7 days as not new |
 
 **Notes:**
 - Running `crontab add` removes and re-adds all jobs — this is normal

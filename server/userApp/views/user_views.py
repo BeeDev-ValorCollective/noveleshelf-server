@@ -5,8 +5,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 from django.contrib.auth import get_user_model
-from ..serializers import UserProfileSerializer, AdminProfileSerializer, AuthorProfileSerializer, ModeratorProfileSerializer
-from ..models import UserProfile, AdminProfile, AuthorProfile, ModeratorProfile
+from ..serializers import UserProfileSerializer, AdminProfileSerializer, AuthorProfileSerializer, ModeratorProfileSerializer, FreeAuthorProfileSerializer, AuthorRequestSerializer
+from ..models import UserProfile, AdminProfile, AuthorProfile, ModeratorProfile, FreeAuthorProfile, AuthorRequest
 from utils.email_utils import send_verification_email
 from django.utils import timezone
 from datetime import timedelta
@@ -171,11 +171,17 @@ def update_default_role(request):
             status=status.HTTP_400_BAD_REQUEST
         )
     
-    valid_roles = ['reader', 'author', 'moderator', 'admin']
+    valid_roles = ['reader', 'author', 'moderator', 'admin', 'free_author']
     if role not in valid_roles:
         return Response(
             {'error': f'Invalid role. Must be one of: {", ".join(valid_roles)}'},
             status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    if role == 'free_author' and not hasattr(request.user, 'free_author_profile'):
+        return Response(
+            {'error': 'You do not have a free author profile'},
+            status=status.HTTP_403_FORBIDDEN
         )
     
     if role == 'author' and not hasattr(request.user, 'author_profile'):
@@ -310,4 +316,172 @@ def change_email(request):
 
     return Response({
         'message': f'Email changed successfully. Please verify your new email address at {new_email}. You have been logged out.'
+    })
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def upgrade_to_free_author(request):
+    if not request.user.is_verified:
+        return Response(
+            {'error': 'Please verify your email before upgrading to a free author'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    if hasattr(request.user, 'free_author_profile'):
+        return Response(
+            {'error': 'You already have a free author profile'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    is_paid_author = hasattr(request.user, 'author_profile')
+
+    FreeAuthorProfile.objects.create(
+        user=request.user,
+        is_publicly_visible=True
+    )
+
+    if not is_paid_author:
+        request.user.default_login_role = 'free_author'
+        request.user.save()
+
+    return Response({
+        'message': 'You have been upgraded to free author successfully',
+        'is_also_paid_author': is_paid_author,
+        'free_author_profile': FreeAuthorProfileSerializer(request.user.free_author_profile).data
+    }, status=status.HTTP_201_CREATED)
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser])
+def update_free_author_profile(request):
+    if not hasattr(request.user, 'free_author_profile'):
+        return Response(
+            {'error': 'Free author profile not found'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+    
+    free_author_profile = request.user.free_author_profile
+    
+    author_username = request.data.get('author_username')
+    pen_name = request.data.get('pen_name')
+    first_name = request.data.get('first_name')
+    last_name = request.data.get('last_name')
+    bio = request.data.get('bio')
+    show_real_name = request.data.get('show_real_name')
+    avatar = request.data.get('avatar_url')
+
+    is_publicly_visible = request.data.get('is_publicly_visible')
+
+    if is_publicly_visible is not None:
+        free_author_profile.is_publicly_visible = is_publicly_visible
+
+    if author_username:
+        if FreeAuthorProfile.objects.filter(author_username=author_username).exclude(user=request.user).exists():
+            return Response(
+                {'error': 'Author username already taken'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        free_author_profile.author_username = author_username
+
+    if pen_name is not None:
+        free_author_profile.pen_name = pen_name
+
+    if first_name is not None:
+        free_author_profile.first_name = first_name
+
+    if last_name is not None:
+        free_author_profile.last_name = last_name
+
+    if bio is not None:
+        free_author_profile.bio = bio
+
+    if show_real_name is not None:
+        free_author_profile.show_real_name = show_real_name
+
+    if avatar:
+        free_author_profile.avatar_url = avatar
+
+    free_author_profile.save()
+
+    return Response({
+        'message': 'Free author profile updated successfully',
+        'free_author_profile': FreeAuthorProfileSerializer(free_author_profile).data
+    })
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def submit_author_request(request):
+    if not request.user.is_verified:
+        return Response(
+            {'error': 'Please verify your email before submitting an author request'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    request_type = request.data.get('request_type')
+
+    if not request_type:
+        return Response(
+            {'error': 'request_type is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    valid_types = ['new_author', 'new_genre', 'tier_review', 'contract_addendum', 'leave_platform', 'rejoin_platform']
+    if request_type not in valid_types:
+        return Response(
+            {'error': f'Invalid request type. Must be one of: {", ".join(valid_types)}'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # new_author requests only for non paid authors
+    if request_type == 'new_author' and hasattr(request.user, 'author_profile'):
+        return Response(
+            {'error': 'You already have a paid author profile. Use author_change request types instead.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # non new_author requests only for paid authors
+    if request_type != 'new_author' and not hasattr(request.user, 'author_profile'):
+        return Response(
+            {'error': 'You must be a paid author to submit this type of request'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # check for active requests
+    active_statuses = ['pending', 'in_progress']
+    existing_request = AuthorRequest.objects.filter(
+        user=request.user,
+        status__in=active_statuses
+    ).first()
+
+    if existing_request:
+        return Response(
+            {'error': 'You already have an active request. Please wait for it to be resolved before submitting a new one.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    bio = request.data.get('bio')
+    genre_interest = request.data.get('genre_interest')
+    writing_sample_link = request.data.get('writing_sample_link')
+
+    author_request = AuthorRequest.objects.create(
+        user=request.user,
+        request_type=request_type,
+        bio=bio,
+        genre_interest=genre_interest,
+        writing_sample_link=writing_sample_link
+    )
+
+    return Response({
+        'message': 'Your request has been submitted successfully. We will be in touch.',
+        'request': AuthorRequestSerializer(author_request).data
+    }, status=status.HTTP_201_CREATED)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_my_author_requests(request):
+    requests = AuthorRequest.objects.filter(user=request.user).order_by('-created_at')
+    
+    return Response({
+        'count': requests.count(),
+        'requests': AuthorRequestSerializer(requests, many=True).data
     })

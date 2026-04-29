@@ -37,7 +37,7 @@ INSTALLED_APPS = [
     'django_crontab',
     'userApp.apps.UserappConfig',
     'cronApp.apps.CronappConfig',
-    # 'booksApp.apps.BooksappConfig',
+    'booksApp.apps.BooksappConfig',
 ]
 
 MIDDLEWARE = [
@@ -61,10 +61,14 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
 }
 CRONJOBS = [
     ('0 0 * * *', 'cron.user_cron.deactivate_unverified_users'),
     ('0 3 * * 0', 'cron.user_cron.flush_expired_tokens'),
+    ('0 1 * * *', 'cron.books_cron.mark_books_not_new'),
+    ('0 1 * * *', 'cron.books_cron.mark_chapters_not_new'),
 ]
 
 ROOT_URLCONF = 'server.urls'

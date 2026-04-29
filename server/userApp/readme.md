@@ -22,8 +22,8 @@ Handles all authentication, user profiles, and admin user management.
 | POST | /api/auth/refresh/ | [Refresh Token](#refresh) | Yes - refresh token in body |
 | GET | /api/auth/verify-email/ | [Verify email address](#verify-email) | No |
 | POST | /api/auth/resend-verification/ | [Resend verification email](#resend-verification) | Yes |
-| POST | /api/auth/forgot-password/ | Request password reset | No |
-| POST | /api/auth/reset-password/ | Reset password with token | No |
+| POST | /api/auth/forgot-password/ | [Request password reset](#forgot-password) | No |
+| POST | /api/auth/reset-password/ | [Reset password with token](#reset-password) | No |
 | | | | |
 | PATCH | /api/user/profile/update/ | [Update reader profile](#update-profile) | Yes |
 | PATCH | /api/user/default-role/update/ | [Update default login role](#update-default-login-role) | Yes |
@@ -32,6 +32,10 @@ Handles all authentication, user profiles, and admin user management.
 | PATCH | /api/user/moderator-profile/update/ | [Update moderator profile](#update-moderator-profile) | Yes |
 | POST | /api/user/change-password/ | [Change password](#change-password) | Yes |
 | POST | /api/user/change-email/ | [Change email](#change-email) | Yes |
+| POST | /api/user/free-author/upgrade/ | [Upgrade to free author](#upgrade-to-free-author) | Yes |
+| PATCH | /api/user/free-author-profile/update/ | [Update free author profile](#update-free-author-profile) | Yes |
+| POST | /api/user/author-request/submit/ | [Submit author request](#submit-author-request) | Yes |
+| GET | /api/user/author-request/my-requests/ | [Get my author requests](#get-my-author-requests) | Yes |
 | | | | |
 | POST | /api/admin/users/author-upgrade/ | [Upgrade user to author](#upgrade-to-author) | Yes |
 | POST | /api/admin/users/admin-upgrade/ | [Upgrade user to admin](#upgrade-to-admin) | Yes |
@@ -40,6 +44,12 @@ Handles all authentication, user profiles, and admin user management.
 | POST | /api/admin/users/deactivate-user/ | [Deactivate user](#deactivate-user) | Yes |
 | POST | /api/admin/users/reactivate-user/ | [Reactivate user](#reactivate-user) | Yes |
 | GET | /api/admin/users/list/ | [List users](#list-users) | Yes |
+| GET | /api/admin/users/author-requests/ | [List all author requests](#list-author-requests) | Yes |
+| PATCH | /api/admin/users/author-request/update/ | [Update author request](#update-author-request) | Yes |
+| POST | /api/admin/users/author-request/approve/ | [Approve author request](#approve-author-request) | Yes |
+| POST | /api/admin/users/deactivate-author/ | [Deactivate author profile](#deactivate-author) | Yes |
+| POST | /api/admin/users/reactivate-author/ | [Reactivate author profile](#reactivate-author) | Yes |
+| PATCH | /api/admin/users/free-author/update/ | [Admin update free author](#admin-update-free-author) | Yes |
 
 ---
 
@@ -57,27 +67,46 @@ None
 #### Success response 200:
 ```json
 {
-    "count": 1,
+    "count": 2,
     "authors": [
         {
+            "author_type": "paid",
             "author_username": null,
             "display_name": "Lily Bee",
             "pen_name": "Lily Bee",
             "bio": null,
             "avatar_url": "/media/avatars/author/default.png",
             "tier": 2
+        },
+        {
+            "author_type": "free",
+            "author_username": "TestFreeAuthor",
+            "display_name": "Free Pen Name",
+            "pen_name": "Free Pen Name",
+            "bio": "This is my free author bio",
+            "avatar_url": "/media/avatars/free_author/default.png",
+            "tier": "F2R"
         }
     ]
 }
 ```
+#### Query params (optional):
+```
+?=featured=true    show only featured authors: true
+```
 #### Notes:
 - No auth required — public facing endpoint for Vite website
-- Only returns authors where `is_publicly_visible` is `True` and account is active
+- Returns paid authors where `is_publicly_visible` is True and account is active
+- Returns free authors where `is_publicly_visible` is True and account is active
+- Free authors default to `is_publicly_visible = True` on upgrade — they can hide themselves via profile update
+- `author_type` field indicates `paid` or `free`
+- Free authors always show `tier: "F2R"`
 - `display_name` logic:
-  - If `show_real_name` is `True` and `first_name` exists → shows real name
-  - If `show_real_name` is `False` → shows `pen_name`
+  - If `show_real_name` is True and `first_name` exists → shows real name
+  - If `show_real_name` is False → shows `pen_name`
   - If no `pen_name` → falls back to `author_username`
 - Does not expose email, date of birth, contract link or any sensitive data
+- TODO: will include book count per author when booksApp is built
 
 ---
 
@@ -117,7 +146,9 @@ Content-Type    application/json
         },
         "admin_profile": null,
         "author_profile": null,
-        "moderator_profile": null
+        "moderator_profile": null,
+        "free_author_profile": null,
+        "is_verified": false
     },
     "tokens": {
         "access": "eyJ...",
@@ -159,7 +190,9 @@ Content-Type    application/json
         "wallet": {...},
         "admin_profile": null,
         "author_profile": null,
-        "moderator_profile": null
+        "moderator_profile": null,
+        "free_author_profile": null,
+        "is_verified": true
     },
     "tokens": {
         "access": "eyJ...",
@@ -171,6 +204,8 @@ Content-Type    application/json
 ```json
 400: {"error": "Email and password are required"}
 401: {"error": "Invalid credentials"}
+401: {"error": "Your account has been deactivated due to unverified email. Please use the resend verification option to reactivate your account."}
+401: {"error": "Your account has been deactivated. Please contact support."}
 ```
 
 ---
@@ -232,7 +267,9 @@ None
     },
     "admin_profile": null,
     "author_profile": null,
-    "moderator_profile": null
+    "moderator_profile": null,
+    "free_author_profile": null,
+    "is_verified": true
 }
 ```
 #### Error response 401:
@@ -586,12 +623,14 @@ Content-Type     application/json
 403: {"error": "You do not have an author profile"}
 403: {"error": "You do not have a moderator profile"}
 403: {"error": "You do not have an admin profile"}
+403: {"error": "You do not have a free author profile"}
 ```
 #### Notes:
 - User can only set a role they actually have a profile for
 - Setting to reader is always allowed since every user is a reader
 - Once set the login gate will be skipped and user will be routed directly to this role on login
 - User can always change back to reader or any other role they have
+- Valid roles: reader, free_author, author, moderator, admin
 
 ---
 
@@ -665,6 +704,184 @@ Content-Type     application/json
 
 #### Planned security enhancement:
 - On email change a notification email will be sent to the old address with an option to cancel/revert the change in case of unauthorized access
+
+---
+
+### Upgrade to free author
+#### Headers:
+```
+Authorization    Bearer <access_token>
+```
+#### Body:
+```
+None
+```
+#### Success response 201:
+```json
+{
+    "message": "You have been upgraded to free author successfully",
+    "is_also_paid_author": false,
+    "free_author_profile": {
+        "author_username": null,
+        "pen_name": null,
+        "first_name": null,
+        "last_name": null,
+        "show_real_name": false,
+        "is_publicly_visible": false,
+        "is_active": true,
+        "bio": null,
+        "avatar_url": "/media/avatars/free_author/default.png",
+        "created_at": "2026-04-21T12:00:00Z"
+    }
+}
+```
+#### Error responses:
+```json
+403: {"error": "Please verify your email before upgrading to a free author"}
+400: {"error": "You already have a free author profile"}
+```
+#### Notes:
+- Email must be verified before upgrading
+- Any verified reader can upgrade themselves — no admin approval needed
+- `default_login_role` is set to `free_author` unless user already has a paid author profile
+- `is_also_paid_author` flag in response tells frontend which confirmation message to show
+- Frontend should show confirmation dialog before calling this endpoint:
+  - Reader: "As a free author your books will always be free to read. Are you sure?"
+  - Paid author: "You already have a paid author profile. Adding a free author profile means two separate author identities. Are you sure?"
+- Free author books are always free to read — no currency unlock required
+
+---
+
+### Update free author profile
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     multipart/form-data
+```
+#### Body (form-data, all fields optional):
+```
+author_username    new username
+avatar_url         <image file>
+```
+#### Success response 200:
+```json
+{
+    "message": "Free author profile updated successfully",
+    "free_author_profile": {
+        "author_username": "TestFreeAuthor",
+        "pen_name": "Free Pen Name",
+        "first_name": null,
+        "last_name": null,
+        "show_real_name": false,
+        "is_publicly_visible": false,
+        "is_active": true,
+        "bio": "This is my free author bio",
+        "avatar_url": "/media/avatars/free_author/default.png",
+        "created_at": "2026-04-21T12:00:00Z"
+    }
+}
+```
+#### Error responses:
+```json
+403: {"error": "Free author profile not found"}
+400: {"error": "Author username already taken"}
+```
+#### Notes:
+- Only users with a free author profile can access this endpoint
+- Unlike paid author profile, free authors can update their own first and last name
+- `show_real_name` can be toggled by the free author
+- `is_publicly_visible` and `is_active` are admin only — silently ignored if sent
+- Uses PATCH not PUT — only send fields you want to change
+- Body must be form-data not JSON to support image uploads
+- Pre-populate fields from `/me/` on form load, only send changed fields
+
+---
+
+### Submit author request
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "request_type": "new_author",
+    "bio": "I am a passionate writer",
+    "genre_interest": "Romance/Romantasy",
+    "writing_sample_link": "https://example.com/mywriting"
+}
+```
+#### Success response 201:
+```json
+{
+    "message": "Your request has been submitted successfully. We will be in touch.",
+    "request": {
+        "id": 1,
+        "request_type": "new_author",
+        "status": "pending",
+        "bio": "I am a passionate writer",
+        "genre_interest": "Romance/Romantasy",
+        "writing_sample_link": "https://example.com/mywriting",
+        "reader_notes": null,
+        "created_at": "2026-04-21T12:00:00Z",
+        "updated_at": "2026-04-21T12:00:00Z"
+    }
+}
+```
+#### Error responses:
+```json
+403: {"error": "Please verify your email before submitting an author request"}
+400: {"error": "request_type is required"}
+400: {"error": "Invalid request type. Must be one of: new_author, new_genre, tier_review, contract_addendum, leave_platform, rejoin_platform"}
+400: {"error": "You already have a paid author profile. Use author_change request types instead."}
+400: {"error": "You must be a paid author to submit this type of request"}
+400: {"error": "You already have an active request. Please wait for it to be resolved before submitting a new one."}
+```
+#### Notes:
+- Email must be verified before submitting
+- `new_author` request type is for readers and free authors only
+- All other request types are for paid authors only
+- Only one active request allowed at a time — pending or in_progress
+- `bio`, `genre_interest` and `writing_sample_link` are all optional
+- `writing_sample_link` should be a URL to external writing samples
+
+---
+
+### Get my author requests
+#### Headers:
+```
+Authorization    Bearer <access_token>
+```
+#### Body:
+```
+None
+```
+#### Success response 200:
+```json
+{
+    "count": 1,
+    "requests": [
+        {
+            "id": 1,
+            "request_type": "new_author",
+            "status": "pending",
+            "bio": "I am a passionate writer",
+            "genre_interest": "Romance/Romantasy",
+            "writing_sample_link": "https://example.com/mywriting",
+            "reader_notes": null,
+            "created_at": "2026-04-22T14:00:55.174230-04:00",
+            "updated_at": "2026-04-22T14:00:55.174257-04:00"
+        }
+    ]
+}
+```
+#### Notes:
+- Returns all requests for the logged in user ordered by most recent first
+- `reader_notes` is populated by admin — visible to the user
+- `admin_notes` and `contact_attempted` are not returned — admin only
+- Status values: pending, in_progress, approved, not_at_this_time, cleared
+- `not_at_this_time` and `cleared` statuses mean the request is closed and a new one can be submitted
 
 ---
 
@@ -773,6 +990,7 @@ Authorization     Bearer <access_token>
 - `first_name` and `last_name` are admin only
 - `is_publicly_visible` controls whether author appears on public authors page
 - Author updates their own username, pen name, bio, show_real_name and avatar via the author profile update endpoint
+- `is_featured` can be set to feature the author on the platform — payment handled offline
 
 ---
 
@@ -928,9 +1146,9 @@ None
 ```
 #### Query params (all optional):
 ```
-?role=         filter by role: reader, author, admin, moderator
-?is_active=    filter by active status: true, false
-?page=         page number, defaults to 1
+role         filter by role: reader, author, free_author, any_author, admin, moderator
+is_active    filter by active status: true, false
+page         page number, defaults to 1
 ```
 #### Success response 200:
 ```json
@@ -951,7 +1169,9 @@ None
             "wallet": {...},
             "admin_profile": null,
             "author_profile": null,
-            "moderator_profile": null
+            "moderator_profile": null,
+            "free_author_profile": null,
+            "is_verified": true
         }
     ]
 }
@@ -965,10 +1185,298 @@ None
 #### Notes:
 - Admin access required
 - Returns all users by default — use query params to filter
-- `role=reader` returns users with no author, admin or moderator profile
+- `role=reader` returns users with no author, free author, admin or moderator profile
+- `role=author` returns paid authors only
+- `role=free_author` returns free authors only
+- `role=any_author` returns both paid and free authors
 - `is_active=false` returns deactivated users
 - Results are paginated at 20 per page
 - Use `page` param to navigate through results
+
+---
+
+### List author requests
+#### Headers:
+```
+Authorization    Bearer <access_token>
+```
+#### Body:
+```
+None
+```
+#### Query params (all optional):
+```
+status              filter by status: pending, in_progress, approved, not_at_this_time, cleared
+request_type        filter by type: new_author, new_genre, tier_review, contract_addendum, leave_platform, rejoin_platform
+contact_attempted   filter by contact status: true, false
+page                page number, defaults to 1
+```
+#### Success response 200:
+```json
+{
+    "count": 1,
+    "page": 1,
+    "page_size": 20,
+    "total_pages": 1,
+    "next": null,
+    "previous": null,
+    "results": [
+        {
+            "id": 1,
+            "user": 5,
+            "request_type": "new_author",
+            "status": "pending",
+            "bio": "I am a passionate writer",
+            "genre_interest": "Romance/Romantasy",
+            "writing_sample_link": "https://example.com/mywriting",
+            "admin_notes": null,
+            "reader_notes": null,
+            "contact_attempted": false,
+            "created_at": "2026-04-22T14:00:55.174230-04:00",
+            "updated_at": "2026-04-22T14:00:55.174257-04:00"
+        }
+    ]
+}
+```
+#### Error response 403:
+```json
+{"error": "You do not have permission to perform this action"}
+```
+#### Notes:
+- Admin access required
+- Returns full request details including admin_notes and contact_attempted
+- Results paginated at 20 per page
+- Use status=pending to find new requests needing attention
+
+---
+
+### Update author request
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body (all fields optional except request_id):
+```json
+{
+    "request_id": 1,
+    "status": "in_progress",
+    "admin_notes": "Contacted via email, waiting for response",
+    "reader_notes": "We have received your request and will be in touch shortly",
+    "contact_attempted": true
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "Request updated successfully",
+    "request": {
+        "id": 1,
+        "user": 5,
+        "request_type": "new_author",
+        "status": "in_progress",
+        "bio": "I am a passionate writer",
+        "genre_interest": "Romance/Romantasy",
+        "writing_sample_link": "https://example.com/mywriting",
+        "admin_notes": "Contacted via email, waiting for response",
+        "reader_notes": "We have received your request and will be in touch shortly",
+        "contact_attempted": true,
+        "created_at": "2026-04-22T14:00:55.174230-04:00",
+        "updated_at": "2026-04-22T14:12:30.308735-04:00"
+    }
+}
+```
+#### Error responses:
+```json
+403: {"error": "You do not have permission to perform this action"}
+400: {"error": "request_id is required"}
+400: {"error": "Invalid status. Must be one of: pending, in_progress, not_at_this_time, cleared"}
+400: {"error": "Use the approve-author-request endpoint to approve requests"}
+404: {"error": "Request not found"}
+```
+#### Notes:
+- Admin access required
+- Cannot set status to approved through this endpoint — use approve-author-request instead
+- `reader_notes` are visible to the user — use for communication about their request
+- `admin_notes` are internal only — never shown to the user
+- `contact_attempted` should be set to true once admin has reached out to the user
+
+---
+
+### Approve author request
+#### Headers:
+```
+Content-Type      application/json
+Authorization     Bearer <access_token>
+```
+#### Body:
+```json
+{
+    "request_id": 1,
+    "first_name": "Test",
+    "last_name": "Author"
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "user@example.com request has been approved successfully",
+    "request": {
+        "id": 1,
+        "user": 5,
+        "request_type": "new_author",
+        "status": "approved",
+        "bio": "I am a passionate writer",
+        "genre_interest": "Romance/Romantasy",
+        "writing_sample_link": "https://example.com/mywriting",
+        "admin_notes": "Contacted via email, waiting for response",
+        "reader_notes": "We have received your request and will be in touch shortly",
+        "contact_attempted": true,
+        "created_at": "2026-04-22T14:00:55.174230-04:00",
+        "updated_at": "2026-04-22T14:12:30.308735-04:00"
+    }
+}
+```
+#### Error responses:
+```json
+403: {"error": "You do not have permission to perform this action"}
+400: {"error": "request_id is required"}
+400: {"error": "This request has already been approved"}
+400: {"error": "User already has a paid author profile"}
+400: {"error": "first_name and last_name are required to approve a new author request"}
+404: {"error": "Request not found"}
+```
+#### Notes:
+- Admin access required
+- `first_name` and `last_name` required only for `new_author` request type
+- Automatically creates `AuthorProfile` for `new_author` requests
+- `leave_platform` approval sets `author_profile.is_active` and `is_publicly_visible` to False
+- `rejoin_platform` approval sets `author_profile.is_active` back to True
+- Approval email sent to user automatically on approval
+- Email subject and message vary based on request type
+- For other request types (new_genre, tier_review etc.) admin handles changes manually after approval
+
+---
+
+### Deactivate author
+#### Headers:
+```
+Content-Type      application/json
+Authorization     Bearer <access_token>
+```
+#### Body:
+```json
+{
+    "user_id": 2
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "user@example.com author profile has been deactivated. All books will be hidden from new readers."
+}
+```
+#### Error responses:
+```json
+403: {"error": "You do not have permission to perform this action"}
+400: {"error": "user_id is required"}
+400: {"error": "Author is already deactivated"}
+404: {"error": "User not found"}
+404: {"error": "User does not have a paid author profile"}
+```
+#### Notes:
+- Admin access required
+- Sets `author_profile.is_active` and `is_publicly_visible` to False
+- Reader account remains active — user can still log in as a reader
+- Confirmation email sent to author automatically
+- TODO: will also hide all author books when booksApp is built
+
+---
+
+### Reactivate author
+#### Headers:
+```
+Content-Type      application/json
+Authorization     Bearer <access_token>
+```
+#### Body:
+```json
+{
+    "user_id": 2
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "user@example.com author profile has been reactivated. Books visibility must be manually updated."
+}
+```
+#### Error responses:
+```json
+403: {"error": "You do not have permission to perform this action"}
+400: {"error": "user_id is required"}
+400: {"error": "Author is already active"}
+404: {"error": "User not found"}
+404: {"error": "User does not have a paid author profile"}
+```
+#### Notes:
+- Admin access required
+- Sets `author_profile.is_active` to True
+- `is_publicly_visible` remains False — admin manually sets when ready
+- Books remain hidden — admin manually unhides per book as agreed in contract
+- Confirmation email sent to author automatically
+- TODO: book visibility handling will be added when booksApp is built
+
+---
+
+### Admin update free author
+#### Headers:
+```
+Content-Type      application/json
+Authorization     Bearer <access_token>
+```
+#### Body (all fields optional except user_id):
+```json
+{
+    "user_id": 2,
+    "is_featured": true,
+    "is_publicly_visible": true,
+    "is_active": true
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "user@example.com free author profile updated successfully",
+    "free_author_profile": {
+        "author_username": "TestFreeAuthor",
+        "pen_name": "Free Pen Name",
+        "first_name": null,
+        "last_name": null,
+        "show_real_name": false,
+        "is_publicly_visible": true,
+        "is_active": true,
+        "is_featured": true,
+        "bio": "This is my free author bio",
+        "avatar_url": "/media/avatars/free_author/default.png",
+        "created_at": "2026-04-21T12:00:00Z"
+    }
+}
+```
+#### Error responses:
+```json
+403: {"error": "You do not have permission to perform this action"}
+400: {"error": "user_id is required"}
+404: {"error": "User not found"}
+404: {"error": "User does not have a free author profile"}
+```
+#### Notes:
+- Admin access required
+- Only manages is_featured, is_publicly_visible and is_active
+- Free author manages their own username, pen name, bio and avatar
+- is_featured used for featuring authors on the platform — payment handled offline
+- is_active=False hides the free author from public listing
+- TODO: is_active=False will also hide their books when booksApp is built
 
 ---
 
