@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'userApp.apps.UserappConfig',
     'cronApp.apps.CronappConfig',
     'booksApp.apps.BooksappConfig',
+    'notificationApp.apps.NotificationappConfig',
 ]
 
 MIDDLEWARE = [
