@@ -23,6 +23,8 @@ def update_profile(request):
     username = request.data.get('username')
     bio = request.data.get('bio')
     avatar = request.data.get('avatar_url')
+    first_name = request.data.get('first_name')
+    last_name = request.data.get('last_name')
     
     if username:
         if UserProfile.objects.filter(username=username).exclude(user=request.user).exists():
@@ -31,6 +33,12 @@ def update_profile(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         profile.username = username
+    
+    if first_name is not None:
+        profile.first_name = first_name
+
+    if last_name is not None:
+        profile.last_name = last_name
     
     if bio is not None:
         profile.bio = bio
