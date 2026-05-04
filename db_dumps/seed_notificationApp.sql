@@ -1,3 +1,5 @@
+DELETE FROM notificationApp_notificationtype;
+ALTER TABLE notificationApp_notificationtype AUTO_INCREMENT = 1;
 INSERT INTO notificationApp_notificationtype 
     (code, label, description, recipient_type, sends_to_user, sends_to_admins, is_active, created_at) 
 VALUES
