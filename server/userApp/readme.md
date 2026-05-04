@@ -163,6 +163,8 @@ Content-Type    application/json
     "confirm_password": ["Passwords do not match"]
 }
 ```
+#### Notes:
+- Triggers `new_user_registered` notification to admins on successful registration
 
 ---
 
@@ -749,6 +751,7 @@ None
   - Reader: "As a free author your books will always be free to read. Are you sure?"
   - Paid author: "You already have a paid author profile. Adding a free author profile means two separate author identities. Are you sure?"
 - Free author books are always free to read — no currency unlock required
+- Triggers `free_author_upgrade` notification to admins on successful upgrade
 
 ---
 
@@ -845,6 +848,7 @@ Content-Type     application/json
 - Only one active request allowed at a time — pending or in_progress
 - `bio`, `genre_interest` and `writing_sample_link` are all optional
 - `writing_sample_link` should be a URL to external writing samples
+- Triggers `new_author_request` notification to admins on successful submission
 
 ---
 
@@ -1300,6 +1304,7 @@ Content-Type     application/json
 - `reader_notes` are visible to the user — use for communication about their request
 - `admin_notes` are internal only — never shown to the user
 - `contact_attempted` should be set to true once admin has reached out to the user
+- Triggers `author_request_status_change` notification to user when status changes
 
 ---
 
@@ -1390,6 +1395,7 @@ Authorization     Bearer <access_token>
 - Reader account remains active — user can still log in as a reader
 - Confirmation email sent to author automatically
 - TODO: will also hide all author books when booksApp is built
+- Triggers `author_deactivated` notification to user and admins
 
 ---
 
@@ -1426,6 +1432,7 @@ Authorization     Bearer <access_token>
 - Books remain hidden — admin manually unhides per book as agreed in contract
 - Confirmation email sent to author automatically
 - TODO: book visibility handling will be added when booksApp is built
+- Triggers `author_reactivated` notification to user and admins
 
 ---
 
