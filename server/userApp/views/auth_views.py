@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken, OutstandingToken, BlacklistedToken
 from django.contrib.auth import get_user_model
 from ..serializers import RegisterSerializer, UserSerializer
-from utils.email_utils import send_verification_email, send_password_reset_email
+from utils.email_utils import send_verification_email, send_password_reset_email, send_notification
 from userApp.models import EmailVerificationToken, PasswordResetToken
 from django.utils import timezone
 from ..models import EmailVerificationToken
@@ -24,6 +24,11 @@ def register(request):
             send_verification_email(user)
         except Exception as e:
             print(f'Verification email failed: {e}')
+
+        try:
+            send_notification('new_user_registered', user=user)
+        except Exception as e:
+            print(f'New user notification failed: {e}')
 
         return Response({
             'user': UserSerializer(user).data,

@@ -7,13 +7,14 @@ This is the main backend API for the NovelShelf platform.
 ## App Structure
 ```
 server/
-├── booksApp/        — Books, chapters, genres endpoints → [Documentation](booksApp/readme.md)
-├── cronApp/         — Cron job logging → [Documentation](cronApp/readme.md)
-├── currencyApp/     — Wallet, currency, transactions endpoints (pending) 
+├── booksApp/        — Books, chapters, genres endpoints → [Documentation](booksApp/README.md)
+├── cronApp/         — Cron job logging → [Documentation](cronApp/README.md)
+├── currencyApp/     — Wallet, currency, transactions endpoints (pending)
+├── notificationApp/ — Notifications, preferences, system emails → [Documentation](notificationApp/README.md)
 ├── cron/            — Cron job functions
 ├── utils/           — Shared utility functions (email, tokens)
 ├── server/          — Core settings, URLs, debug endpoints
-├── userApp/         — Auth, user profiles, admin endpoints → [Documentation](userApp/readme.md)
+├── userApp/         — Auth, user profiles, admin endpoints → [Documentation](userApp/README.md)
 ├── logs/            — Cron job log files
 ├── manage.py
 ├── requirements.txt
@@ -29,6 +30,7 @@ server/
 | userApp | Auth, user profiles, admin user management | [userApp README](userApp/readme.md) | [Developer Notes](userApp/dev_notes.md) |
 | booksApp | Books, chapters, genres | [booksApp README](booksApp/readme.md) | [Developer Notes](booksApp/dev_notes.md) |
 | cronApp | Cron job logging | [cronApp README](cronApp/readme.md) | — |
+| notificationApp | Notifications, preferences, system emails | [notificationApp README](notificationApp/readme.md) | [Developer Notes](notificationApp/dev_notes.md) |
 | currencyApp | Wallet, currency, transactions | Coming soon | — |
 
 ---

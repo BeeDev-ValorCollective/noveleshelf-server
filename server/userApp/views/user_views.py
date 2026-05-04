@@ -7,7 +7,7 @@ from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, Bl
 from django.contrib.auth import get_user_model
 from ..serializers import UserProfileSerializer, AdminProfileSerializer, AuthorProfileSerializer, ModeratorProfileSerializer, FreeAuthorProfileSerializer, AuthorRequestSerializer
 from ..models import UserProfile, AdminProfile, AuthorProfile, ModeratorProfile, FreeAuthorProfile, AuthorRequest
-from utils.email_utils import send_verification_email
+from utils.email_utils import send_verification_email, send_notification
 from django.utils import timezone
 from datetime import timedelta
 
@@ -352,6 +352,11 @@ def upgrade_to_free_author(request):
         request.user.default_login_role = 'free_author'
         request.user.save()
 
+    try:
+        send_notification('free_author_upgrade', user=request.user)
+    except Exception as e:
+        print(f'Free author upgrade notification failed: {e}')
+
     return Response({
         'message': 'You have been upgraded to free author successfully',
         'is_also_paid_author': is_paid_author,
@@ -478,6 +483,11 @@ def submit_author_request(request):
         genre_interest=genre_interest,
         writing_sample_link=writing_sample_link
     )
+
+    try:
+        send_notification('new_author_request', user=request.user, context={'request_type': request_type})
+    except Exception as e:
+        print(f'New author request notification failed: {e}')
 
     return Response({
         'message': 'Your request has been submitted successfully. We will be in touch.',
