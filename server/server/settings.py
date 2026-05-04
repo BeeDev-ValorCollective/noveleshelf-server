@@ -92,7 +92,11 @@ TEMPLATES = [
 WSGI_APPLICATION = 'server.wsgi.application'
 
 db_init_command = env('DB_INIT_COMMAND', default='')
-db_options = {}
+db_options = {
+    'ssl': {
+        'ssl-mode': env('DB_SSL_MODE', default=''),
+    }
+}
 if db_init_command:
     db_options['init_command'] = db_init_command
 
@@ -103,7 +107,7 @@ DATABASES = {
         'USER': env('DB_USER'),
         'PASSWORD': env('DB_PASSWORD'),
         'HOST': env('DB_HOST', default='localhost'),
-        'PORT': '3306',
+        'PORT': env('DB_PORT', default='3306'),
         'OPTIONS': db_options,
     }
 }
