@@ -50,6 +50,7 @@ Handles all authentication, user profiles, and admin user management.
 | POST | /api/admin/users/deactivate-author/ | [Deactivate author profile](#deactivate-author) | Yes |
 | POST | /api/admin/users/reactivate-author/ | [Reactivate author profile](#reactivate-author) | Yes |
 | PATCH | /api/admin/users/free-author/update/ | [Admin update free author](#admin-update-free-author) | Yes |
+| POST | /api/admin/users/resend-verification/ | [Admin resend verification email](#admin-resend-verification) | Yes |
 
 ---
 
@@ -1484,6 +1485,39 @@ Authorization     Bearer <access_token>
 - is_featured used for featuring authors on the platform — payment handled offline
 - is_active=False hides the free author from public listing
 - TODO: is_active=False will also hide their books when booksApp is built
+
+---
+
+### Admin resend verification
+#### Headers:
+```
+Content-Type      application/json
+Authorization     Bearer <access_token>
+```
+#### Body:
+```json
+{
+    "user_id": 2
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "Verification email sent to user@example.com"
+}
+```
+#### Error responses:
+```json
+403: {"error": "You do not have permission to perform this action"}
+400: {"error": "user_id is required"}
+400: {"error": "User email is already verified"}
+404: {"error": "User not found"}
+```
+#### Notes:
+- Admin access required
+- Invalidates any existing unused verification tokens before sending new one
+- New token expires after 24 hours
+- Use when a user reports not receiving their verification email or token has expired
 
 ---
 

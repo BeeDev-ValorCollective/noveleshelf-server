@@ -10,6 +10,7 @@ from ..models import UserProfile, AdminProfile, AuthorProfile, ModeratorProfile,
 from utils.email_utils import send_verification_email, send_notification
 from django.utils import timezone
 from datetime import timedelta
+import threading
 
 User = get_user_model()
 
@@ -317,10 +318,9 @@ def change_email(request):
         print(f'Token blacklist error: {e}')
 
     # send verification email to new address
-    try:
-        send_verification_email(request.user)
-    except Exception as e:
-        print(f'Verification email failed: {e}')
+    thread = threading.Thread(target=send_verification_email, args=(request.user,))
+    thread.daemon = True
+    thread.start()
 
     return Response({
         'message': f'Email changed successfully. Please verify your new email address at {new_email}. You have been logged out.'
@@ -352,10 +352,12 @@ def upgrade_to_free_author(request):
         request.user.default_login_role = 'free_author'
         request.user.save()
 
-    try:
-        send_notification('free_author_upgrade', user=request.user)
-    except Exception as e:
-        print(f'Free author upgrade notification failed: {e}')
+    thread = threading.Thread(
+        target=send_notification,
+        kwargs={'notification_code': 'free_author_upgrade', 'user': request.user}
+    )
+    thread.daemon = True
+    thread.start()
 
     return Response({
         'message': 'You have been upgraded to free author successfully',
@@ -484,10 +486,12 @@ def submit_author_request(request):
         writing_sample_link=writing_sample_link
     )
 
-    try:
-        send_notification('new_author_request', user=request.user, context={'request_type': request_type})
-    except Exception as e:
-        print(f'New author request notification failed: {e}')
+    thread = threading.Thread(
+        target=send_notification,
+        kwargs={'notification_code': 'new_author_request', 'user': request.user, 'context': {'request_type': request_type}}
+    )
+    thread.daemon = True
+    thread.start()
 
     return Response({
         'message': 'Your request has been submitted successfully. We will be in touch.',

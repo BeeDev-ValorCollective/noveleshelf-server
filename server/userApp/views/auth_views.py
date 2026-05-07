@@ -21,15 +21,13 @@ def register(request):
         user = serializer.save()
         refresh = RefreshToken.for_user(user)
 
-        try:
-            send_verification_email(user)
-        except Exception as e:
-            print(f'Verification email failed: {e}')
+        thread = threading.Thread(target=send_verification_email, args=(user,))
+        thread.daemon = True
+        thread.start()
 
-        try:
-            send_notification('new_user_registered', user=user)
-        except Exception as e:
-            print(f'New user notification failed: {e}')
+        thread2 = threading.Thread(target=send_notification, kwargs={'notification_code': 'new_user_registered', 'user': user})
+        thread2.daemon = True
+        thread2.start()
 
         return Response({
             'user': UserSerializer(user).data,
@@ -191,32 +189,24 @@ def forgot_password(request):
     try:
         user = User.objects.get(email=email)
     except User.DoesNotExist:
-        # don't reveal if email exists or not for security
         return Response({
             'message': 'If an account exists with that email you will receive a password reset link shortly.'
         })
 
-    # check if email is verified
     if not user.is_verified:
         return Response(
             {'error': 'Your email address is not verified. Please verify your email before resetting your password.'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    # invalidate any existing unused reset tokens
     PasswordResetToken.objects.filter(
         user=user,
         is_used=False
     ).update(is_used=True)
 
-    try:
-        send_password_reset_email(user)
-    except Exception as e:
-        print(f'Password reset email failed: {e}')
-        return Response(
-            {'error': 'Failed to send reset email. Please try again.'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    thread = threading.Thread(target=send_password_reset_email, args=(user,))
+    thread.daemon = True
+    thread.start()
 
     return Response({
         'message': 'If an account exists with that email you will receive a password reset link shortly.'

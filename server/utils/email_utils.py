@@ -9,12 +9,13 @@ logger = logging.getLogger(__name__)
 # ─── Direct user emails (always send, no preferences) ─────────────────────────
 
 def send_verification_email(user):
-    token = generate_verification_token(user)
-    verification_url = f"{settings.FRONTEND_URL}/verify-email?token={token}"
+    try:
+        token = generate_verification_token(user)
+        verification_url = f"{settings.FRONTEND_URL}/verify-email?token={token}"
 
-    send_mail(
-        subject='Verify your Novel eShelf account',
-        message=f'''Welcome to Novel eShelf!
+        send_mail(
+            subject='Verify your Novel eShelf account',
+            message=f'''Welcome to Novel eShelf!
 
 Please verify your email address by clicking the link below:
 
@@ -25,10 +26,13 @@ This link expires in 24 hours.
 This email was sent to {user.email}. If you did not create an account please ignore this email.
 
 The Novel eShelf Team''',
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[user.email],
-        fail_silently=False,
-    )
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
+        logger.info(f'Verification email sent to {user.email}')
+    except Exception as e:
+        logger.error(f'Failed to send verification email to {user.email}: {e}')
 
 
 def send_password_reset_email(user):
@@ -40,23 +44,24 @@ def send_password_reset_email(user):
             subject='Reset your Novel eShelf password',
             message=f'''Hi there,
 
-    We received a request to reset the password for your Novel eShelf account associated with {user.email}.
+We received a request to reset the password for your Novel eShelf account associated with {user.email}.
 
-    Click the link below to reset your password:
+Click the link below to reset your password:
 
-    {reset_url}
+{reset_url}
 
-    This link expires in 24 hours.
+This link expires in 24 hours.
 
-    If you did not request a password reset please ignore this email. Your password will not be changed.
+If you did not request a password reset please ignore this email. Your password will not be changed.
 
-    The Novel eShelf Team''',
+The Novel eShelf Team''',
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[user.email],
             fail_silently=False,
         )
+        logger.info(f'Password reset email sent to {user.email}')
     except Exception as e:
-        logger.error(f'Failed to send verification email to {user.email}: {e}')
+        logger.error(f'Failed to send password reset email to {user.email}: {e}')
 
 
 def send_author_approved_email(user, request_type):
@@ -121,19 +126,24 @@ If you have any questions please contact us through the admin dashboard.
 
 The Novel eShelf Team'''
 
-    send_mail(
-        subject=subject,
-        message=message,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[user.email],
-        fail_silently=False,
-    )
+    try:
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
+        logger.info(f'Author approved email ({request_type}) sent to {user.email}')
+    except Exception as e:
+        logger.error(f'Failed to send author approved email to {user.email}: {e}')
 
 
 def send_author_deactivated_email(user):
-    send_mail(
-        subject='Novel eShelf — Author profile deactivated',
-        message=f'''Hi there,
+    try:
+        send_mail(
+            subject='Novel eShelf — Author profile deactivated',
+            message=f'''Hi there,
 
 Your paid author profile on Novel eShelf has been deactivated as requested.
 
@@ -145,16 +155,20 @@ Please note that your reader account remains active. You can still log in and en
 If you wish to reactivate your author profile in the future please submit a rejoin request through your dashboard.
 
 The Novel eShelf Team''',
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[user.email],
-        fail_silently=False,
-    )
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
+        logger.info(f'Author deactivated email sent to {user.email}')
+    except Exception as e:
+        logger.error(f'Failed to send author deactivated email to {user.email}: {e}')
 
 
 def send_author_reactivated_email(user):
-    send_mail(
-        subject='Novel eShelf — Author profile reactivated',
-        message=f'''Welcome back!
+    try:
+        send_mail(
+            subject='Novel eShelf — Author profile reactivated',
+            message=f'''Welcome back!
 
 Your author profile on Novel eShelf has been reactivated.
 
@@ -164,10 +178,13 @@ You can now log in and access your author dashboard at:
 Please note that your books visibility will need to be manually updated by the admin team. Please contact us through the dashboard to discuss which books should be made available again.
 
 The Novel eShelf Team''',
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[user.email],
-        fail_silently=False,
-    )
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
+        logger.info(f'Author reactivated email sent to {user.email}')
+    except Exception as e:
+        logger.error(f'Failed to send author reactivated email to {user.email}: {e}')
 
 
 # ─── Central notification sender ──────────────────────────────────────────────
@@ -190,14 +207,14 @@ def send_notification(notification_code, user=None, triggered_by=None, context=N
             is_active=True
         )
     except Exception as e:
-        print(f'Notification type not found: {notification_code} — {e}')
+        logger.error(f'Notification type not found: {notification_code} — {e}')
         return
 
     context = context or {}
     email_subject, email_message = _build_email_content(notification_code, user, triggered_by, context)
 
     if not email_subject or not email_message:
-        print(f'No email content for notification type: {notification_code}')
+        logger.warning(f'No email content for notification type: {notification_code}')
         return
 
     recipients = set()
@@ -214,7 +231,6 @@ def send_notification(notification_code, user=None, triggered_by=None, context=N
 
     # send to admins/moderators based on preferences
     if notification_type.sends_to_admins:
-        # get all users with admin or moderator profile
         from userApp.models import User
         admin_users = User.objects.filter(
             admin_profile__isnull=False
@@ -223,7 +239,6 @@ def send_notification(notification_code, user=None, triggered_by=None, context=N
         )
 
         for admin_user in admin_users:
-            # check preference — default to True if no preference set
             preference = NotificationPreference.objects.filter(
                 user=admin_user,
                 notification_type=notification_type
@@ -233,14 +248,12 @@ def send_notification(notification_code, user=None, triggered_by=None, context=N
 
             if is_enabled:
                 recipients.add(admin_user.email)
-                # create bell notification for admin/moderator
                 Notification.objects.create(
                     user=admin_user,
                     notification_type=notification_type,
                     message=_build_bell_message(notification_code, user, triggered_by, context)
                 )
 
-        # add system notification emails
         system_emails = SystemNotificationEmail.objects.filter(
             is_active=True,
             notification_types=notification_type
@@ -248,7 +261,6 @@ def send_notification(notification_code, user=None, triggered_by=None, context=N
         for system_email in system_emails:
             recipients.add(system_email.email)
 
-    # send the email
     if recipients:
         try:
             send_mail(
@@ -258,8 +270,9 @@ def send_notification(notification_code, user=None, triggered_by=None, context=N
                 recipient_list=list(recipients),
                 fail_silently=False,
             )
+            logger.info(f'Notification email ({notification_code}) sent to {recipients}')
         except Exception as e:
-            print(f'Email send error for {notification_code}: {e}')
+            logger.error(f'Email send error for {notification_code}: {e}')
 
 
 def _build_email_content(notification_code, user, triggered_by, context):

@@ -173,12 +173,23 @@ LOGGING = {
             'filename': os.path.join(BASE_DIR, 'logs/cron.log'),
             'formatter': 'verbose',
         },
+        'email_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs/email.log'),
+            'formatter': 'verbose',
+        },
     },
     'loggers': {
         'cron': {
             'handlers': ['cron_file'],
             'level': 'INFO',
             'propagate': True,
+        },
+        'utils.email_utils': {
+            'handlers': ['email_file'],
+            'level': 'INFO',
+            'propagate': False,
         },
     },
 }

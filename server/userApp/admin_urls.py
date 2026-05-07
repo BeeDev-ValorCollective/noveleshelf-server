@@ -15,4 +15,5 @@ urlpatterns = [
     path('author-request/approve/', admin_views.approve_author_request),
     path('deactivate-author/', admin_views.deactivate_author),
     path('reactivate-author/', admin_views.reactivate_author),
+    path('resend-verification/', admin_views.admin_resend_verification),
 ]
