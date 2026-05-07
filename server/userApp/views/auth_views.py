@@ -9,6 +9,7 @@ from utils.email_utils import send_verification_email, send_password_reset_email
 from userApp.models import EmailVerificationToken, PasswordResetToken
 from django.utils import timezone
 from ..models import EmailVerificationToken
+import threading
 
 User = get_user_model()
 
@@ -168,16 +169,13 @@ def resend_verification(request):
         is_used=False
     ).update(is_used=True)
     
-    try:
-        send_verification_email(request.user)
-        return Response({
-            'message': f'Verification email sent to {request.user.email}. Please check your inbox.'
-        })
-    except Exception as e:
-        return Response(
-            {'error': 'Failed to send verification email. Please try again.'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    thread = threading.Thread(target=send_verification_email, args=(request.user,))
+    thread.daemon = True
+    thread.start()
+    
+    return Response({
+        'message': f'Verification email sent to {request.user.email}. Please check your inbox.'
+    })
     
 @api_view(['POST'])
 @permission_classes([AllowAny])
