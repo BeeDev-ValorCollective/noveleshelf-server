@@ -21,6 +21,8 @@ CSRF_TRUSTED_ORIGINS = []
 
 CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS')
 
+CORS_ALLOW_CREDENTIALS = True
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -68,8 +70,8 @@ SIMPLE_JWT = {
 CRONJOBS = [
     ('0 0 * * *', 'cron.user_cron.deactivate_unverified_users'),
     ('0 3 * * 0', 'cron.user_cron.flush_expired_tokens'),
-    ('0 1 * * *', 'cron.books_cron.mark_books_not_new'),
-    ('0 1 * * *', 'cron.books_cron.mark_chapters_not_new'),
+    # ('0 1 * * *', 'cron.books_cron.mark_books_not_new'),
+    # ('0 1 * * *', 'cron.books_cron.mark_chapters_not_new'),
 ]
 
 ROOT_URLCONF = 'server.urls'

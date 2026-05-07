@@ -1,6 +1,9 @@
 from django.core.mail import send_mail
 from django.conf import settings
 from utils.token_utils import generate_verification_token, generate_password_reset_token
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # ─── Direct user emails (always send, no preferences) ─────────────────────────
@@ -29,28 +32,31 @@ The Novel eShelf Team''',
 
 
 def send_password_reset_email(user):
-    token = generate_password_reset_token(user)
-    reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token}"
+    try:
+        token = generate_password_reset_token(user)
+        reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token}"
 
-    send_mail(
-        subject='Reset your Novel eShelf password',
-        message=f'''Hi there,
+        send_mail(
+            subject='Reset your Novel eShelf password',
+            message=f'''Hi there,
 
-We received a request to reset the password for your Novel eShelf account associated with {user.email}.
+    We received a request to reset the password for your Novel eShelf account associated with {user.email}.
 
-Click the link below to reset your password:
+    Click the link below to reset your password:
 
-{reset_url}
+    {reset_url}
 
-This link expires in 24 hours.
+    This link expires in 24 hours.
 
-If you did not request a password reset please ignore this email. Your password will not be changed.
+    If you did not request a password reset please ignore this email. Your password will not be changed.
 
-The Novel eShelf Team''',
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[user.email],
-        fail_silently=False,
-    )
+    The Novel eShelf Team''',
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
+    except Exception as e:
+        logger.error(f'Failed to send verification email to {user.email}: {e}')
 
 
 def send_author_approved_email(user, request_type):
