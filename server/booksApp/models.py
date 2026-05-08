@@ -68,10 +68,10 @@ class Book(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField(null=True, blank=True)
     cover_image = models.ImageField(
-        upload_to='covers/',
+        upload_to='bookCovers/',
         null=True,
         blank=True,
-        default='covers/default.png'
+        default='bookCovers/default.png'
     )
     content_rating = models.ForeignKey(
         ContentRating,
@@ -100,7 +100,6 @@ class Book(models.Model):
 class BookPage(models.Model):
     PAGE_TYPES = [
         ('prologue', 'Prologue'),
-        ('epilogue', 'Epilogue'),
         ('authors_note', "Author's Note"),
         ('dedication', 'Dedication'),
         ('acknowledgements', 'Acknowledgements'),

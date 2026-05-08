@@ -45,12 +45,12 @@ Handles all book, chapter, genre, and reading progress functionality.
 | PATCH | /api/books/author/books/update/ | Update book | Yes |
 | POST | /api/books/author/books/submit/ | Submit book for approval | Yes |
 | DELETE | /api/books/author/books/delete/ | Delete book | Yes |
-| POST | /api/books/author/books/genres/add/ | Add genre | Yes |
-| DELETE | /api/books/author/books/genres/remove/ | Delete genre | Yes |
-| POST | /api/books/author/books/relationship-tags/add/ | Add Tag | Yes |
-| DELETE | /api/books/author/books/relationship-tags/remove/ | Delete tag | Yes |
-| POST | /api/books/author/books/keywords/add/ | Add Keyword | Yes |
-| DELETE | /api/books/author/books/keywords/remove/ | Delete Keyword | Yes |
+| POST | /api/books/author/books/genres/add/ | Add genre to book | Yes |
+| DELETE | /api/books/author/books/genres/remove/ | Remove genre from book | Yes |
+| POST | /api/books/author/books/relationship-tags/add/ | Add relationship tag to book | Yes |
+| DELETE | /api/books/author/books/relationship-tags/remove/ | Remove relationship tag from book | Yes |
+| POST | /api/books/author/books/keywords/add/ | Add keyword to book | Yes |
+| DELETE | /api/books/author/books/keywords/remove/ | Remove keyword from book | Yes |
 | POST | /api/books/author/chapters/create/ | Create chapter | Yes |
 | GET | /api/books/author/chapters/ | List my chapters | Yes |
 | PATCH | /api/books/author/chapters/update/ | Update chapter | Yes |
@@ -61,7 +61,7 @@ Handles all book, chapter, genre, and reading progress functionality.
 | POST | /api/books/author/pages/publish/ | Publish book page | Yes |
 | POST | /api/books/author/pages/unpublish/ | Unpublish book page | Yes |
 
-### Reader endpoints (`/api/books/user/`)
+### User endpoints (`/api/books/user/`)
 
 | Method | Endpoint | Description | Auth Required |
 |--------|----------|-------------|---------------|
@@ -398,44 +398,6 @@ Content-Type     application/json
 Authorization    Bearer <access_token>
 Content-Type     application/json
 ```
-#### Body:
-```json
-{
-    "code": "FF",
-    "name": "Female/Female"
-}
-```
-#### Success response 201:
-```json
-{
-    "message": "Relationship tag \"Female/Female\" created successfully",
-    "relationship_tag": {
-        "id": 1,
-        "code": "FF",
-        "name": "Female/Female",
-        "is_active": true
-    }
-}
-```
-#### Error responses:
-```json
-403: {"error": "You do not have permission to perform this action"}
-400: {"error": "code and name are required"}
-400: {"error": "A relationship tag with this code already exists"}
-```
-#### Notes:
-- Admin access required
-- Code is automatically uppercased on save
-- Code is case-insensitive unique check
-
----
-
-### Update relationship tag
-#### Headers:
-```
-Authorization    Bearer <access_token>
-Content-Type     application/json
-```
 #### Body (all fields optional except tag_id):
 ```json
 {
@@ -445,7 +407,7 @@ Content-Type     application/json
     "is_active": true
 }
 ```
-#### Success response 200:
+#### Success response 201:
 ```json
 {
     "message": "Relationship tag \"Female/Female Romance\" updated successfully",
@@ -572,6 +534,437 @@ Content-Type     application/json
 #### Notes:
 - Admin access required
 - Name is case-insensitive unique check
+
+---
+
+### Create book
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     multipart/form-data
+```
+#### Body (all fields optional except title):
+```
+title               book title
+description         book description
+cover_image         <image file>
+content_rating_id   id of content rating
+free_chapters       number of free chapters (default 3)
+author_type         paid or free (required if user has both profiles)
+```
+#### Success response 201:
+```json
+{
+    "message": "Book \"My First Book\" created successfully",
+    "book": {
+        "id": 1,
+        "title": "My First Book",
+        "description": "A great story",
+        "cover_image": "/media/bookCovers/paid/default.png",
+        "content_rating": null,
+        "book_tier": null,
+        "status": "draft",
+        "is_visible": true,
+        "is_featured": false,
+        "is_new": true,
+        "is_complete": false,
+        "free_chapters": 3,
+        "has_pending_changes": false,
+        "genres": [],
+        "relationship_tags": [],
+        "keywords": [],
+        "pages": [],
+        "chapters": [],
+        "chapter_count": 0,
+        "published_chapter_count": 0,
+        "created_at": "2026-05-08T12:00:00Z",
+        "updated_at": "2026-05-08T12:00:00Z"
+    }
+}
+```
+#### Error responses:
+```json
+403: {"error": "You must be an author to perform this action"}
+400: {"error": "title is required"}
+400: {"error": "free_chapters must be a number"}
+400: {"error": "author_type is required when you have both paid and free author profiles. Must be paid or free."}
+404: {"error": "Content rating not found"}
+```
+#### Notes:
+- User must have an author or free_author profile
+- `author_type` is optional if user only has one profile type
+- `author_type` is required if user has both paid and free author profiles
+- Paid author books default to `status: draft` and require approval before publishing chapters
+- Free author books default to `status: approved` and can publish chapters immediately
+- Cover image defaults to `bookCovers/paid/default.png` or `bookCovers/free/default.png` based on author type
+- Body must be multipart/form-data to support image uploads
+
+---
+
+### List my books
+#### Headers:
+```
+Authorization    Bearer <access_token>
+```
+#### Body:
+```
+None
+```
+#### Success response 200:
+```json
+{
+    "count": 1,
+    "books": [
+        {
+            "id": 1,
+            "title": "My First Book",
+            "description": "A great story",
+            "cover_image": "/media/bookCovers/paid/default.png",
+            "content_rating": null,
+            "book_tier": null,
+            "status": "draft",
+            "is_visible": true,
+            "is_featured": false,
+            "is_new": true,
+            "is_complete": false,
+            "free_chapters": 3,
+            "has_pending_changes": false,
+            "genres": [],
+            "relationship_tags": [],
+            "keywords": [],
+            "pages": [],
+            "chapters": [],
+            "chapter_count": 0,
+            "published_chapter_count": 0,
+            "created_at": "2026-05-08T12:00:00Z",
+            "updated_at": "2026-05-08T12:00:00Z"
+        }
+    ]
+}
+```
+#### Query params (optional):
+```
+status         filter by status: draft, pending_approval, approved, changes_requested, rejected
+author_type    paid or free (required if user has both profiles)
+```
+#### Notes:
+- User must have an author or free_author profile
+- Returns books ordered by most recently created
+- `author_type` is optional if user only has one profile type
+
+---
+
+### Update book
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     multipart/form-data
+```
+#### Body (all fields optional except book_id):
+```
+book_id             id of book to update
+title               new title
+description         new description
+cover_image         <image file>
+content_rating_id   id of content rating
+free_chapters       new number of free chapters
+author_type         paid or free (required if user has both profiles)
+```
+#### Success response 200:
+```json
+{
+    "message": "Book \"Updated Title\" updated successfully",
+    "book": {...}
+}
+```
+#### Error responses:
+```json
+403: {"error": "You must be an author to perform this action"}
+400: {"error": "book_id is required"}
+400: {"error": "Rejected books cannot be edited"}
+400: {"error": "free_chapters must be a number"}
+400: {"error": "author_type is required when you have both paid and free author profiles. Must be paid or free."}
+404: {"error": "Book not found"}
+404: {"error": "Content rating not found"}
+```
+#### Notes:
+- Uses PATCH not PUT — only send fields you want to change
+- Body must be multipart/form-data to support image uploads
+- Rejected books cannot be edited
+- If book is `pending_approval` and is edited, `has_pending_changes` is set to True to alert admin
+
+---
+
+### Submit book for approval
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "book_id": 1,
+    "author_type": "paid"
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "Book \"My First Book\" submitted for approval successfully",
+    "book": {...}
+}
+```
+#### Error responses:
+```json
+403: {"error": "Only paid authors can submit books for approval"}
+400: {"error": "book_id is required"}
+400: {"error": "Books with status \"approved\" cannot be submitted for approval"}
+400: {"error": "author_type is required when you have both paid and free author profiles. Must be paid or free."}
+404: {"error": "Book not found"}
+```
+#### Notes:
+- Only paid authors can submit books for approval
+- Free author books are automatically approved on creation
+- Only books with status `draft` or `changes_requested` can be submitted
+- Sets `submitted_at` timestamp and clears `has_pending_changes` on submission
+
+---
+
+### Delete book
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "book_id": 1,
+    "author_type": "paid"
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "Book \"My First Book\" deleted successfully"
+}
+```
+#### Error responses:
+```json
+403: {"error": "You must be an author to perform this action"}
+400: {"error": "book_id is required"}
+400: {"error": "Books with published chapters cannot be deleted"}
+400: {"error": "author_type is required when you have both paid and free author profiles. Must be paid or free."}
+404: {"error": "Book not found"}
+```
+#### Notes:
+- Books with published chapters cannot be deleted
+- All draft chapters, pages, genres, tags and keywords are deleted with the book
+
+---
+
+### Add genre to book
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "book_id": 1,
+    "genre_id": 1,
+    "author_type": "paid"
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "Genre \"Romance\" added to \"My First Book\" successfully",
+    "book": {...}
+}
+```
+#### Error responses:
+```json
+403: {"error": "You must be an author to perform this action"}
+400: {"error": "book_id and genre_id are required"}
+400: {"error": "This genre is already added to the book"}
+400: {"error": "author_type is required when you have both paid and free author profiles. Must be paid or free."}
+404: {"error": "Book not found"}
+404: {"error": "Genre not found"}
+```
+#### Notes:
+- Genre must be active to be added
+- A book can have multiple genres
+
+---
+
+### Remove genre from book
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "book_id": 1,
+    "genre_id": 1,
+    "author_type": "paid"
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "Genre removed successfully",
+    "book": {...}
+}
+```
+#### Error responses:
+```json
+403: {"error": "You must be an author to perform this action"}
+400: {"error": "book_id and genre_id are required"}
+400: {"error": "author_type is required when you have both paid and free author profiles. Must be paid or free."}
+404: {"error": "Book not found"}
+404: {"error": "Genre not found on this book"}
+```
+
+---
+
+### Add relationship tag to book
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "book_id": 1,
+    "tag_id": 1,
+    "author_type": "paid"
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "Tag \"Female/Female\" added to \"My First Book\" successfully",
+    "book": {...}
+}
+```
+#### Error responses:
+```json
+403: {"error": "You must be an author to perform this action"}
+400: {"error": "book_id and tag_id are required"}
+400: {"error": "This tag is already added to the book"}
+400: {"error": "author_type is required when you have both paid and free author profiles. Must be paid or free."}
+404: {"error": "Book not found"}
+404: {"error": "Relationship tag not found"}
+```
+#### Notes:
+- Tag must be active to be added
+- A book can have multiple relationship tags
+
+---
+
+### Remove relationship tag from book
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "book_id": 1,
+    "tag_id": 1,
+    "author_type": "paid"
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "Tag removed successfully",
+    "book": {...}
+}
+```
+#### Error responses:
+```json
+403: {"error": "You must be an author to perform this action"}
+400: {"error": "book_id and tag_id are required"}
+400: {"error": "author_type is required when you have both paid and free author profiles. Must be paid or free."}
+404: {"error": "Book not found"}
+404: {"error": "Tag not found on this book"}
+```
+
+---
+
+### Add keyword to book
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "book_id": 1,
+    "keyword_id": 1,
+    "author_type": "paid"
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "Keyword \"Dragons\" added to \"My First Book\" successfully",
+    "book": {...}
+}
+```
+#### Error responses:
+```json
+403: {"error": "You must be an author to perform this action"}
+400: {"error": "book_id and keyword_id are required"}
+400: {"error": "This keyword is already added to the book"}
+400: {"error": "author_type is required when you have both paid and free author profiles. Must be paid or free."}
+404: {"error": "Book not found"}
+404: {"error": "Keyword not found"}
+```
+#### Notes:
+- Keyword must be active to be added
+- A book can have multiple keywords
+
+---
+
+### Remove keyword from book
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "book_id": 1,
+    "keyword_id": 1,
+    "author_type": "paid"
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "Keyword removed successfully",
+    "book": {...}
+}
+```
+#### Error responses:
+```json
+403: {"error": "You must be an author to perform this action"}
+400: {"error": "book_id and keyword_id are required"}
+400: {"error": "author_type is required when you have both paid and free author profiles. Must be paid or free."}
+404: {"error": "Book not found"}
+404: {"error": "Keyword not found on this book"}
+```
 
 ---
 
