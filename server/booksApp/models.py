@@ -86,6 +86,8 @@ class Book(models.Model):
     is_new = models.BooleanField(default=True)
     is_complete = models.BooleanField(default=False)
     free_chapters = models.IntegerField(default=3)
+    has_pending_changes = models.BooleanField(default=False)
+    submitted_at = models.DateTimeField(null=True, blank=True)
     admin_notes = models.TextField(null=True, blank=True)
     reader_notes = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -159,12 +161,14 @@ class Chapter(models.Model):
     ]
 
     book = models.ForeignKey(Book, on_delete=models.CASCADE, related_name='chapters')
-    chapter_number = models.IntegerField()
-    title = models.CharField(max_length=200)
+    chapter_number = models.IntegerField(editable=False)
+    title = models.CharField(max_length=200, null=True, blank=True)
     content = models.TextField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
     is_free = models.BooleanField(default=False)
     is_new = models.BooleanField(default=True)
+    is_final = models.BooleanField(default=False)
+    word_count = models.IntegerField(default=0, editable=False)
     unlock_cost = models.IntegerField(default=0)
     published_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -175,7 +179,9 @@ class Chapter(models.Model):
         ordering = ['chapter_number']
 
     def __str__(self):
-        return f'{self.book.title} - Chapter {self.chapter_number}: {self.title}'
+        if self.title:
+            return f'{self.book.title} - Chapter {self.chapter_number}: {self.title}'
+        return f'{self.book.title} - Chapter {self.chapter_number}'
 
 
 class BookReview(models.Model):

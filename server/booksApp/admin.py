@@ -30,23 +30,23 @@ class BookPageInline(admin.StackedInline):
 class ChapterInline(admin.TabularInline):
     model = Chapter
     extra = 0
-    fields = ['chapter_number', 'title', 'status', 'is_free', 'is_new', 'unlock_cost', 'published_at']
-    readonly_fields = ['published_at']
+    fields = ['chapter_number', 'title', 'status', 'is_free', 'is_final', 'is_new', 'word_count', 'unlock_cost', 'published_at']
+    readonly_fields = ['chapter_number', 'word_count', 'published_at']
 
 
 class BookAdmin(admin.ModelAdmin):
-    list_display = ['title', 'author_profile', 'free_author_profile', 'status', 'is_visible', 'is_featured', 'is_new', 'is_complete', 'book_tier', 'created_at']
-    list_filter = ['status', 'is_visible', 'is_featured', 'is_new', 'is_complete']
+    list_display = ['title', 'author_profile', 'free_author_profile', 'status', 'is_visible', 'is_featured', 'is_new', 'is_complete', 'has_pending_changes', 'book_tier', 'created_at']
+    list_filter = ['status', 'is_visible', 'is_featured', 'is_new', 'is_complete', 'has_pending_changes']
     search_fields = ['title']
-    readonly_fields = ['created_at', 'updated_at']
+    readonly_fields = ['submitted_at', 'created_at', 'updated_at']
     inlines = [BookGenreInline, BookRelationshipTagInline, BookKeywordInline, BookPageInline, ChapterInline]
 
 
 class ChapterAdmin(admin.ModelAdmin):
-    list_display = ['book', 'chapter_number', 'title', 'status', 'is_free', 'is_new', 'unlock_cost', 'published_at']
-    list_filter = ['status', 'is_free', 'is_new']
+    list_display = ['book', 'chapter_number', 'title', 'status', 'is_free', 'is_final', 'is_new', 'word_count', 'unlock_cost', 'published_at']
+    list_filter = ['status', 'is_free', 'is_new', 'is_final']
     search_fields = ['title', 'book__title']
-    readonly_fields = ['published_at', 'created_at', 'updated_at']
+    readonly_fields = ['chapter_number', 'word_count', 'published_at', 'created_at', 'updated_at']
 
 
 class BookReviewAdmin(admin.ModelAdmin):

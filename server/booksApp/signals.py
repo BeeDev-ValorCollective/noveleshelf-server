@@ -1,13 +1,28 @@
-from django.db.models.signals import post_save
+from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
 from django.utils import timezone
 
 
-@receiver(post_save, sender='booksApp.Chapter')
-def handle_chapter_save(sender, instance, created, **kwargs):
-    from .models import Chapter, UserBook, UserReadingProgress
+@receiver(pre_save, sender='booksApp.Chapter')
+def handle_chapter_pre_save(sender, instance, **kwargs):
+    # auto-increment chapter_number on create
+    if not instance.pk:
+        from .models import Chapter
+        last_chapter = Chapter.objects.filter(
+            book=instance.book
+        ).order_by('chapter_number').last()
+        instance.chapter_number = (last_chapter.chapter_number + 1) if last_chapter else 1
 
-    # when chapter is published
+    # auto-calculate word count
+    if instance.content:
+        instance.word_count = len(instance.content.split())
+
+
+@receiver(post_save, sender='booksApp.Chapter')
+def handle_chapter_post_save(sender, instance, created, **kwargs):
+    from .models import Chapter, Book
+
+    # when chapter is published for the first time
     if instance.status == 'published' and instance.published_at is None:
         # set published_at
         Chapter.objects.filter(pk=instance.pk).update(published_at=timezone.now())
@@ -21,11 +36,14 @@ def handle_chapter_save(sender, instance, created, **kwargs):
             instance.book.is_new = True
             instance.book.save()
 
+    # if is_final is marked, set book is_complete — permanent once set
+    if instance.is_final and not instance.book.is_complete:
+        Book.objects.filter(pk=instance.book.pk).update(is_complete=True)
+
 
 @receiver(post_save, sender='booksApp.UserReadingProgress')
 def handle_reading_progress(sender, instance, created, **kwargs):
     from .models import UserBook, UserReadingProgress
-    from django.utils import timezone
 
     if instance.is_read:
         # update or create UserBook entry
