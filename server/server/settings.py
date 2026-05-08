@@ -68,8 +68,8 @@ SIMPLE_JWT = {
     'BLACKLIST_AFTER_ROTATION': True,
 }
 CRONJOBS = [
-    ('0 0 * * *', 'cron.user_cron.deactivate_unverified_users'),
-    ('0 3 * * 0', 'cron.user_cron.flush_expired_tokens'),
+    ('0 0 * * *', 'cron.user_cron.deactivate_unverified_users'), # runs 00:00 UTC Daily
+    ('0 3 * * 0', 'cron.user_cron.flush_expired_tokens'), # runs 03:00 UTC Sundays
     # ('0 1 * * *', 'cron.books_cron.mark_books_not_new'),
     # ('0 1 * * *', 'cron.books_cron.mark_chapters_not_new'),
 ]

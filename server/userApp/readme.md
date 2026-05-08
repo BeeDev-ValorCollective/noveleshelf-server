@@ -36,6 +36,11 @@ Handles all authentication, user profiles, and admin user management.
 | PATCH | /api/user/free-author-profile/update/ | [Update free author profile](#update-free-author-profile) | Yes |
 | POST | /api/user/author-request/submit/ | [Submit author request](#submit-author-request) | Yes |
 | GET | /api/user/author-request/my-requests/ | [Get my author requests](#get-my-author-requests) | Yes |
+| POST | /api/user/follow/ | [Follow an author](#follow-author) | Yes |
+| POST | /api/user/unfollow/ | [Unfollow an author](#unfollow-author) | Yes |
+| GET | /api/user/following/ | [My following list](#my-following) | Yes |
+| GET | /api/user/author-dashboard/ | [Author dashboard](#author-dashboard) | Yes |
+| GET | /api/user/free-author-dashboard/ | [Free author dashboard](#free-author-dashboard) | Yes |
 | | | | |
 | POST | /api/admin/users/author-upgrade/ | [Upgrade user to author](#upgrade-to-author) | Yes |
 | POST | /api/admin/users/admin-upgrade/ | [Upgrade user to admin](#upgrade-to-admin) | Yes |
@@ -887,6 +892,259 @@ None
 - `admin_notes` and `contact_attempted` are not returned — admin only
 - Status values: pending, in_progress, approved, not_at_this_time, cleared
 - `not_at_this_time` and `cleared` statuses mean the request is closed and a new one can be submitted
+
+---
+
+### Get my author requests
+#### Headers:
+```
+Authorization    Bearer <access_token>
+```
+#### Body:
+```
+None
+```
+#### Success response 200:
+```json
+{
+    "count": 1,
+    "requests": [
+        {
+            "id": 1,
+            "request_type": "new_author",
+            "status": "pending",
+            "bio": "I am a passionate writer",
+            "genre_interest": "Romance/Romantasy",
+            "writing_sample_link": "https://example.com/mywriting",
+            "reader_notes": null,
+            "created_at": "2026-04-22T14:00:55.174230-04:00",
+            "updated_at": "2026-04-22T14:00:55.174257-04:00"
+        }
+    ]
+}
+```
+#### Notes:
+- Returns all requests for the logged in user ordered by most recent first
+- `reader_notes` is populated by admin — visible to the user
+- `admin_notes` and `contact_attempted` are not returned — admin only
+- Status values: pending, in_progress, approved, not_at_this_time, cleared
+- `not_at_this_time` and `cleared` statuses mean the request is closed and a new one can be submitted
+
+---
+
+### Follow author
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "author_type": "paid",
+    "author_id": 1
+}
+```
+#### Success response 201:
+```json
+{
+    "message": "Author followed successfully",
+    "follow": {
+        "id": 1,
+        "author_type": "paid",
+        "author_profile": {
+            "author_username": null,
+            "pen_name": "Lily Bee",
+            "display_name": "Lily Bee",
+            "avatar_url": "/media/avatars/author/default.png",
+            "tier": 2,
+            "is_publicly_visible": true
+        },
+        "free_author_profile": null,
+        "followed_at": "2026-05-08T12:00:00Z"
+    }
+}
+```
+#### Error responses:
+```json
+400: {"error": "author_type and author_id are required"}
+400: {"error": "author_type must be paid or free"}
+400: {"error": "You are already following this author"}
+404: {"error": "Author not found"}
+```
+#### Notes:
+- `author_type` must be `paid` or `free`
+- `author_id` is the AuthorProfile or FreeAuthorProfile id — not the user id
+- Author must be active to be followed
+- Following is private — not shown on public author profiles
+- `following_count` on `/me/` increments on success
+
+---
+
+### Unfollow author
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "author_type": "paid",
+    "author_id": 1
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "Author unfollowed successfully"
+}
+```
+#### Error responses:
+```json
+400: {"error": "author_type and author_id are required"}
+400: {"error": "author_type must be paid or free"}
+404: {"error": "You are not following this author"}
+```
+#### Notes:
+- `author_type` must be `paid` or `free`
+- `author_id` is the AuthorProfile or FreeAuthorProfile id — not the user id
+- `following_count` on `/me/` decrements on success
+
+---
+
+### My following
+#### Headers:
+```
+Authorization    Bearer <access_token>
+```
+#### Body:
+```
+None
+```
+#### Success response 200:
+```json
+{
+    "count": 2,
+    "following": [
+        {
+            "id": 1,
+            "author_type": "paid",
+            "author_profile": {
+                "author_username": null,
+                "pen_name": "Lily Bee",
+                "display_name": "Lily Bee",
+                "avatar_url": "/media/avatars/author/default.png",
+                "tier": 2,
+                "is_publicly_visible": true
+            },
+            "free_author_profile": null,
+            "followed_at": "2026-05-08T12:00:00Z"
+        },
+        {
+            "id": 2,
+            "author_type": "free",
+            "author_profile": null,
+            "free_author_profile": {
+                "author_username": "TestFreeAuthor",
+                "pen_name": "Free Pen Name",
+                "display_name": "Free Pen Name",
+                "avatar_url": "/media/avatars/free_author/default.png",
+                "is_publicly_visible": true
+            },
+            "followed_at": "2026-05-08T13:00:00Z"
+        }
+    ]
+}
+```
+#### Notes:
+- Returns all authors the logged in user is following ordered by most recently followed
+- Private endpoint — auth required
+- Use this to populate the "Following" section of the reader dashboard
+
+---
+
+### Author dashboard
+#### Headers:
+```
+Authorization    Bearer <access_token>
+```
+#### Body:
+```
+None
+```
+#### Success response 200:
+```json
+{
+    "author_profile": {
+        "author_username": null,
+        "pen_name": "Lily Bee",
+        "first_name": "Melissa",
+        "last_name": "Payne",
+        "show_real_name": false,
+        "is_publicly_visible": true,
+        "is_active": true,
+        "is_featured": false,
+        "bio": null,
+        "tier": 2,
+        "contract_link": "https://drive.google.com/drive/folders/example",
+        "avatar_url": "/media/avatars/author/default.png",
+        "created_at": "2026-04-10T12:34:12.171145-04:00",
+        "follower_count": 5
+    }
+}
+```
+#### Error response 403:
+```json
+{
+    "error": "Author profile not found"
+}
+```
+#### Notes:
+- Only users with a paid author profile can access this endpoint
+- `follower_count` is private — only visible to the author themselves
+- TODO: will include book stats and analytics when booksApp is built
+
+---
+
+### Free author dashboard
+#### Headers:
+```
+Authorization    Bearer <access_token>
+```
+#### Body:
+```
+None
+```
+#### Success response 200:
+```json
+{
+    "free_author_profile": {
+        "author_username": "TestFreeAuthor",
+        "pen_name": "Free Pen Name",
+        "first_name": null,
+        "last_name": null,
+        "show_real_name": false,
+        "is_publicly_visible": true,
+        "is_active": true,
+        "is_featured": false,
+        "bio": "This is my free author bio",
+        "avatar_url": "/media/avatars/free_author/default.png",
+        "created_at": "2026-04-21T12:00:00Z",
+        "follower_count": 3
+    }
+}
+```
+#### Error response 403:
+```json
+{
+    "error": "Free author profile not found"
+}
+```
+#### Notes:
+- Only users with a free author profile can access this endpoint
+- `follower_count` is private — only visible to the author themselves
+- TODO: will include book stats and analytics when booksApp is built
 
 ---
 
