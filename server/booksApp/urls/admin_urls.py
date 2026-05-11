@@ -14,4 +14,9 @@ urlpatterns = [
     path('keywords/', admin_views.list_keywords),
     path('keywords/create/', admin_views.create_keyword),
     path('keywords/update/', admin_views.update_keyword),
+    path('books/', admin_views.list_books),
+    path('books/update/', admin_views.admin_update_book),
+    path('books/approve/', admin_views.approve_book),
+    path('books/request-changes/', admin_views.request_changes),
+    path('books/reject/', admin_views.reject_book),
 ]

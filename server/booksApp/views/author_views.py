@@ -639,3 +639,360 @@ def remove_keyword(request):
         'message': 'Keyword removed successfully',
         'book': BookSerializer(book).data
     })
+
+# ─── Chapter Management ───────────────────────────────────────────────────────
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_chapter(request):
+    author_type = request.data.get('author_type')
+    profile, profile_type = get_active_author_profile(request.user, author_type)
+
+    if profile_type == 'both':
+        return author_type_error_response()
+
+    if not profile:
+        return not_author_error_response()
+
+    book_id = request.data.get('book_id')
+
+    if not book_id:
+        return Response(
+            {'error': 'book_id is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    book, _ = get_book_for_author(book_id, request.user, author_type)
+
+    if not book:
+        return Response(
+            {'error': 'Book not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    # paid author books must be approved before adding chapters
+    if profile_type == 'paid' and book.status not in ['approved', 'changes_requested', 'pending_approval']:
+        return Response(
+            {'error': 'Book must be submitted for approval before adding chapters'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    content = request.data.get('content')
+
+    if not content:
+        return Response(
+            {'error': 'content is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    title = request.data.get('title')
+    is_final = request.data.get('is_final', False)
+
+    # check if book is already complete
+    if book.is_complete:
+        return Response(
+            {'error': 'Cannot add chapters to a completed book'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    chapter = Chapter(
+        book=book,
+        title=title if title else None,
+        content=content,
+        is_final=is_final in [True, 'true', 'True', '1']
+    )
+
+    # is_free set by signal based on chapter_number vs free_chapters
+    # for free authors all chapters are free
+    if profile_type == 'free':
+        chapter.is_free = True
+
+    chapter.save()
+
+    return Response({
+        'message': f'Chapter {chapter.chapter_number} created successfully',
+        'chapter': ChapterDetailSerializer(chapter).data
+    }, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def list_my_chapters(request):
+    author_type = request.query_params.get('author_type')
+    profile, profile_type = get_active_author_profile(request.user, author_type)
+
+    if profile_type == 'both':
+        return author_type_error_response()
+
+    if not profile:
+        return not_author_error_response()
+
+    book_id = request.query_params.get('book_id')
+
+    if not book_id:
+        return Response(
+            {'error': 'book_id is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    book, _ = get_book_for_author(book_id, request.user, author_type)
+
+    if not book:
+        return Response(
+            {'error': 'Book not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    chapters = book.chapters.all()
+
+    status_filter = request.query_params.get('status')
+    if status_filter:
+        chapters = chapters.filter(status=status_filter)
+
+    return Response({
+        'count': chapters.count(),
+        'chapters': ChapterDetailSerializer(chapters, many=True).data
+    })
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_chapter(request):
+    author_type = request.data.get('author_type')
+    profile, profile_type = get_active_author_profile(request.user, author_type)
+
+    if profile_type == 'both':
+        return author_type_error_response()
+
+    if not profile:
+        return not_author_error_response()
+
+    chapter_id = request.data.get('chapter_id')
+
+    if not chapter_id:
+        return Response(
+            {'error': 'chapter_id is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        chapter = Chapter.objects.get(id=chapter_id)
+    except Chapter.DoesNotExist:
+        return Response(
+            {'error': 'Chapter not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    # verify chapter belongs to this author
+    book, _ = get_book_for_author(chapter.book.id, request.user, author_type)
+
+    if not book:
+        return Response(
+            {'error': 'Chapter not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    title = request.data.get('title')
+    content = request.data.get('content')
+    is_final = request.data.get('is_final')
+    unlock_cost = request.data.get('unlock_cost')
+
+    if title is not None:
+        chapter.title = title if title else None
+
+    if content is not None:
+        chapter.content = content
+
+    if is_final is not None:
+        # once a book is complete is_final cannot be unset
+        if book.is_complete and is_final in [False, 'false', 'False', '0']:
+            return Response(
+                {'error': 'Cannot unmark final chapter once book is marked complete'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        chapter.is_final = is_final in [True, 'true', 'True', '1']
+
+    if unlock_cost is not None:
+        try:
+            chapter.unlock_cost = int(unlock_cost)
+        except ValueError:
+            return Response(
+                {'error': 'unlock_cost must be a number'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    chapter.save()
+
+    return Response({
+        'message': f'Chapter {chapter.chapter_number} updated successfully',
+        'chapter': ChapterDetailSerializer(chapter).data
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def publish_chapter(request):
+    author_type = request.data.get('author_type')
+    profile, profile_type = get_active_author_profile(request.user, author_type)
+
+    if profile_type == 'both':
+        return author_type_error_response()
+
+    if not profile:
+        return not_author_error_response()
+
+    chapter_id = request.data.get('chapter_id')
+
+    if not chapter_id:
+        return Response(
+            {'error': 'chapter_id is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        chapter = Chapter.objects.get(id=chapter_id)
+    except Chapter.DoesNotExist:
+        return Response(
+            {'error': 'Chapter not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    book, _ = get_book_for_author(chapter.book.id, request.user, author_type)
+
+    if not book:
+        return Response(
+            {'error': 'Chapter not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    # book must be approved to publish chapters
+    if book.status != 'approved':
+        return Response(
+            {'error': 'Book must be approved before publishing chapters'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if chapter.status == 'published':
+        return Response(
+            {'error': 'Chapter is already published'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    chapter.status = 'published'
+    chapter.save()
+
+    return Response({
+        'message': f'Chapter {chapter.chapter_number} published successfully',
+        'chapter': ChapterDetailSerializer(chapter).data
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def unpublish_chapter(request):
+    author_type = request.data.get('author_type')
+    profile, profile_type = get_active_author_profile(request.user, author_type)
+
+    if profile_type == 'both':
+        return author_type_error_response()
+
+    if not profile:
+        return not_author_error_response()
+
+    chapter_id = request.data.get('chapter_id')
+
+    if not chapter_id:
+        return Response(
+            {'error': 'chapter_id is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        chapter = Chapter.objects.get(id=chapter_id)
+    except Chapter.DoesNotExist:
+        return Response(
+            {'error': 'Chapter not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    book, _ = get_book_for_author(chapter.book.id, request.user, author_type)
+
+    if not book:
+        return Response(
+            {'error': 'Chapter not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    if chapter.status == 'draft':
+        return Response(
+            {'error': 'Chapter is already unpublished'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # cannot unpublish if chapter has been unlocked by readers
+    from booksApp.models import UserReadingProgress
+    if UserReadingProgress.objects.filter(chapter=chapter, is_unlocked=True).exists():
+        return Response(
+            {'error': 'Cannot unpublish a chapter that has been unlocked by readers'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    chapter.status = 'draft'
+    chapter.published_at = None
+    chapter.save()
+
+    return Response({
+        'message': f'Chapter {chapter.chapter_number} unpublished successfully',
+        'chapter': ChapterDetailSerializer(chapter).data
+    })
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_chapter(request):
+    author_type = request.data.get('author_type')
+    profile, profile_type = get_active_author_profile(request.user, author_type)
+
+    if profile_type == 'both':
+        return author_type_error_response()
+
+    if not profile:
+        return not_author_error_response()
+
+    chapter_id = request.data.get('chapter_id')
+
+    if not chapter_id:
+        return Response(
+            {'error': 'chapter_id is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        chapter = Chapter.objects.get(id=chapter_id)
+    except Chapter.DoesNotExist:
+        return Response(
+            {'error': 'Chapter not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    book, _ = get_book_for_author(chapter.book.id, request.user, author_type)
+
+    if not book:
+        return Response(
+            {'error': 'Chapter not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    # cannot delete published chapters
+    if chapter.status == 'published':
+        return Response(
+            {'error': 'Published chapters cannot be deleted'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    chapter_number = chapter.chapter_number
+    chapter.delete()
+
+    return Response({
+        'message': f'Chapter {chapter_number} deleted successfully'
+    })

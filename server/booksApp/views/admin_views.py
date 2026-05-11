@@ -3,8 +3,8 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from booksApp.models import Genre, ContentRating, RelationshipTag, Keyword
-from booksApp.serializers import GenreSerializer, ContentRatingSerializer, RelationshipTagSerializer, KeywordSerializer
+from booksApp.models import Genre, ContentRating, RelationshipTag, Keyword, Book
+from booksApp.serializers import GenreSerializer, ContentRatingSerializer, RelationshipTagSerializer, KeywordSerializer, BookAdminSerializer
 
 
 # ─── Genre ────────────────────────────────────────────────────────────────────
@@ -430,4 +430,254 @@ def update_keyword(request):
     return Response({
         'message': f'Keyword "{keyword.name}" updated successfully',
         'keyword': KeywordSerializer(keyword).data
+    })
+
+
+# ─── Book Management ──────────────────────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def list_books(request):
+    if not request.user.is_staff:
+        return Response(
+            {'error': 'You do not have permission to perform this action'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    books = Book.objects.all().order_by('-created_at')
+
+    status_filter = request.query_params.get('status')
+    has_pending_changes = request.query_params.get('has_pending_changes')
+    author_type = request.query_params.get('author_type')
+
+    if status_filter:
+        books = books.filter(status=status_filter)
+
+    if has_pending_changes is not None:
+        books = books.filter(has_pending_changes=has_pending_changes.lower() == 'true')
+
+    if author_type == 'paid':
+        books = books.filter(author_profile__isnull=False)
+    elif author_type == 'free':
+        books = books.filter(free_author_profile__isnull=False)
+
+    page_size = 20
+    page = int(request.query_params.get('page', 1))
+    start = (page - 1) * page_size
+    end = start + page_size
+    total = books.count()
+
+    return Response({
+        'count': total,
+        'page': page,
+        'page_size': page_size,
+        'total_pages': (total + page_size - 1) // page_size,
+        'next': f'?page={page + 1}' if end < total else None,
+        'previous': f'?page={page - 1}' if page > 1 else None,
+        'results': BookAdminSerializer(books[start:end], many=True).data
+    })
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def admin_update_book(request):
+    if not request.user.is_staff:
+        return Response(
+            {'error': 'You do not have permission to perform this action'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    book_id = request.data.get('book_id')
+
+    if not book_id:
+        return Response(
+            {'error': 'book_id is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        book = Book.objects.get(id=book_id)
+    except Book.DoesNotExist:
+        return Response(
+            {'error': 'Book not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    book_tier = request.data.get('book_tier')
+    is_visible = request.data.get('is_visible')
+    is_featured = request.data.get('is_featured')
+    admin_notes = request.data.get('admin_notes')
+    reader_notes = request.data.get('reader_notes')
+
+    if book_tier is not None:
+        try:
+            book.book_tier = int(book_tier)
+        except ValueError:
+            return Response(
+                {'error': 'book_tier must be a number'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    if is_visible is not None:
+        book.is_visible = is_visible
+
+    if is_featured is not None:
+        book.is_featured = is_featured
+
+    if admin_notes is not None:
+        book.admin_notes = admin_notes
+
+    if reader_notes is not None:
+        book.reader_notes = reader_notes
+
+    book.save()
+
+    return Response({
+        'message': f'Book "{book.title}" updated successfully',
+        'book': BookAdminSerializer(book).data
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def approve_book(request):
+    if not request.user.is_staff:
+        return Response(
+            {'error': 'You do not have permission to perform this action'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    book_id = request.data.get('book_id')
+
+    if not book_id:
+        return Response(
+            {'error': 'book_id is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        book = Book.objects.get(id=book_id)
+    except Book.DoesNotExist:
+        return Response(
+            {'error': 'Book not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    if book.status != 'pending_approval':
+        return Response(
+            {'error': f'Only books with status "pending_approval" can be approved'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    book.status = 'approved'
+    book.has_pending_changes = False
+    book.admin_notes = request.data.get('admin_notes', book.admin_notes)
+    book.reader_notes = request.data.get('reader_notes', book.reader_notes)
+    book.save()
+
+    return Response({
+        'message': f'Book "{book.title}" approved successfully',
+        'book': BookAdminSerializer(book).data
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def request_changes(request):
+    if not request.user.is_staff:
+        return Response(
+            {'error': 'You do not have permission to perform this action'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    book_id = request.data.get('book_id')
+
+    if not book_id:
+        return Response(
+            {'error': 'book_id is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        book = Book.objects.get(id=book_id)
+    except Book.DoesNotExist:
+        return Response(
+            {'error': 'Book not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    if book.status != 'pending_approval':
+        return Response(
+            {'error': 'Only books with status "pending_approval" can have changes requested'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    reader_notes = request.data.get('reader_notes')
+
+    if not reader_notes:
+        return Response(
+            {'error': 'reader_notes is required when requesting changes'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    book.status = 'changes_requested'
+    book.has_pending_changes = False
+    book.reader_notes = reader_notes
+    book.admin_notes = request.data.get('admin_notes', book.admin_notes)
+    book.save()
+
+    return Response({
+        'message': f'Changes requested for book "{book.title}"',
+        'book': BookAdminSerializer(book).data
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def reject_book(request):
+    if not request.user.is_staff:
+        return Response(
+            {'error': 'You do not have permission to perform this action'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    book_id = request.data.get('book_id')
+
+    if not book_id:
+        return Response(
+            {'error': 'book_id is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        book = Book.objects.get(id=book_id)
+    except Book.DoesNotExist:
+        return Response(
+            {'error': 'Book not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    if book.status != 'pending_approval':
+        return Response(
+            {'error': 'Only books with status "pending_approval" can be rejected'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    reader_notes = request.data.get('reader_notes')
+
+    if not reader_notes:
+        return Response(
+            {'error': 'reader_notes is required when rejecting a book'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    book.status = 'rejected'
+    book.has_pending_changes = False
+    book.reader_notes = reader_notes
+    book.admin_notes = request.data.get('admin_notes', book.admin_notes)
+    book.save()
+
+    return Response({
+        'message': f'Book "{book.title}" rejected',
+        'book': BookAdminSerializer(book).data
     })
