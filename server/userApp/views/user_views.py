@@ -14,6 +14,13 @@ import threading
 
 User = get_user_model()
 
+def parse_bool(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() == 'true'
+    return False
+
 
 @api_view(['PATCH'])
 @permission_classes([IsAuthenticated])
@@ -116,7 +123,7 @@ def update_author_profile(request):
         author_profile.author_username = author_username
     
     if show_real_name is not None:
-        author_profile.show_real_name = show_real_name
+        author_profile.show_real_name = parse_bool(show_real_name)
     
     if pen_name is not None:
         author_profile.pen_name = pen_name
