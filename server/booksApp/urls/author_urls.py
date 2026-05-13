@@ -22,4 +22,10 @@ urlpatterns = [
     path('chapters/publish/', author_views.publish_chapter),
     path('chapters/unpublish/', author_views.unpublish_chapter),
     path('chapters/delete/', author_views.delete_chapter),
+
+    # Pages
+    path('pages/create-update/', author_views.create_update_book_page),
+    path('pages/publish/', author_views.publish_book_page),
+    path('pages/unpublish/', author_views.unpublish_book_page),
+    path('pages/delete/', author_views.delete_book_page),
 ]

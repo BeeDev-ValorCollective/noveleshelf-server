@@ -996,3 +996,206 @@ def delete_chapter(request):
     return Response({
         'message': f'Chapter {chapter_number} deleted successfully'
     })
+
+# ─── Page Management ──────────────────────────────────────────────────────────
+
+VALID_PAGE_TYPES = ['prologue', 'authors_note', 'dedication', 'acknowledgements', 'next_book_teaser']
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_update_book_page(request):
+    author_type = request.data.get('author_type')
+    profile, profile_type = get_active_author_profile(request.user, author_type)
+
+    if profile_type == 'both':
+        return author_type_error_response()
+
+    if not profile:
+        return not_author_error_response()
+
+    book_id = request.data.get('book_id')
+    page_type = request.data.get('page_type')
+    content = request.data.get('content')
+
+    if not book_id or not page_type or not content:
+        return Response(
+            {'error': 'book_id, page_type and content are required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if page_type not in VALID_PAGE_TYPES:
+        return Response(
+            {'error': f'Invalid page_type. Must be one of: {", ".join(VALID_PAGE_TYPES)}'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    book, _ = get_book_for_author(book_id, request.user, author_type)
+    if not book:
+        return Response(
+            {'error': 'Book not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    page, created = BookPage.objects.update_or_create(
+        book=book,
+        page_type=page_type,
+        defaults={'content': content}
+    )
+
+    page_type_display = dict(BookPage.PAGE_TYPES).get(page_type, page_type).title()
+
+    return Response(
+        {
+            'message': f'{page_type_display} saved successfully',
+            'page': BookPageSerializer(page).data
+        },
+        status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
+    )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def publish_book_page(request):
+    author_type = request.data.get('author_type')
+    profile, profile_type = get_active_author_profile(request.user, author_type)
+
+    if profile_type == 'both':
+        return author_type_error_response()
+
+    if not profile:
+        return not_author_error_response()
+
+    book_id = request.data.get('book_id')
+    page_type = request.data.get('page_type')
+
+    if not book_id or not page_type:
+        return Response(
+            {'error': 'book_id and page_type are required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    book, _ = get_book_for_author(book_id, request.user, author_type)
+    if not book:
+        return Response(
+            {'error': 'Book not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    try:
+        page = BookPage.objects.get(book=book, page_type=page_type)
+    except BookPage.DoesNotExist:
+        return Response(
+            {'error': 'Page not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    if page.is_published:
+        return Response(
+            {'error': 'Page is already published'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    page.is_published = True
+    page.save()
+
+    page_type_display = dict(BookPage.PAGE_TYPES).get(page_type, page_type).title()
+
+    return Response({
+        'message': f'{page_type_display} published successfully',
+        'page': BookPageSerializer(page).data
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def unpublish_book_page(request):
+    author_type = request.data.get('author_type')
+    profile, profile_type = get_active_author_profile(request.user, author_type)
+
+    if profile_type == 'both':
+        return author_type_error_response()
+
+    if not profile:
+        return not_author_error_response()
+
+    book_id = request.data.get('book_id')
+    page_type = request.data.get('page_type')
+
+    if not book_id or not page_type:
+        return Response(
+            {'error': 'book_id and page_type are required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    book, _ = get_book_for_author(book_id, request.user, author_type)
+    if not book:
+        return Response(
+            {'error': 'Book not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    try:
+        page = BookPage.objects.get(book=book, page_type=page_type)
+    except BookPage.DoesNotExist:
+        return Response(
+            {'error': 'Page not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    if not page.is_published:
+        return Response(
+            {'error': 'Page is already unpublished'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    page.is_published = False
+    page.save()
+
+    page_type_display = dict(BookPage.PAGE_TYPES).get(page_type, page_type).title()
+
+    return Response({
+        'message': f'{page_type_display} unpublished successfully',
+        'page': BookPageSerializer(page).data
+    })
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_book_page(request):
+    author_type = request.data.get('author_type')
+    profile, profile_type = get_active_author_profile(request.user, author_type)
+
+    if profile_type == 'both':
+        return author_type_error_response()
+
+    if not profile:
+        return not_author_error_response()
+
+    book_id = request.data.get('book_id')
+    page_type = request.data.get('page_type')
+
+    if not book_id or not page_type:
+        return Response(
+            {'error': 'book_id and page_type are required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    book, _ = get_book_for_author(book_id, request.user, author_type)
+    if not book:
+        return Response(
+            {'error': 'Book not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    try:
+        page = BookPage.objects.get(book=book, page_type=page_type)
+    except BookPage.DoesNotExist:
+        return Response(
+            {'error': 'Page not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    page_type_display = dict(BookPage.PAGE_TYPES).get(page_type, page_type).title()
+    page.delete()
+
+    return Response({'message': f'{page_type_display} deleted successfully'})

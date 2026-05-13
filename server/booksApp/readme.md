@@ -27,11 +27,11 @@ Handles all book, chapter, genre, and reading progress functionality.
 | POST | /api/books/admin/keywords/create/ | [Create keyword](#create-keyword) | Yes |
 | PATCH | /api/books/admin/keywords/update/ | [Update keyword](#update-keyword) | Yes |
 |||||
-| GET | /api/books/admin/books/ | List all books | Yes |
-| PATCH | /api/books/admin/books/update/ | Update book | Yes |
-| POST | /api/books/admin/books/approve/ | Approve book | Yes |
-| POST | /api/books/admin/books/request-changes/ | Request book changes | Yes |
-| POST | /api/books/admin/books/reject/ | Reject book | Yes |
+| GET | /api/books/admin/books/ | [List all books](#list-all-books-admin) | Yes |
+| PATCH | /api/books/admin/books/update/ | [Update book](#admin-update-book) | Yes |
+| POST | /api/books/admin/books/approve/ | [Approve book](#approve-book) | Yes |
+| POST | /api/books/admin/books/request-changes/ | [Request book changes](#request-book-changes) | Yes |
+| POST | /api/books/admin/books/reject/ | [Reject book](#reject-book) | Yes |
 |||||
 | GET | /api/books/admin/flagged/reviews/ | List flagged reviews | Yes |
 | GET | /api/books/admin/flagged/comments/ | List flagged comments | Yes |
@@ -61,9 +61,10 @@ Handles all book, chapter, genre, and reading progress functionality.
 | POST | /api/books/author/chapters/unpublish/ | [Unpublish chapter](#unpublish-chapter) | Yes |
 | DELETE | /api/books/author/chapters/delete/ | [Delete chapter](#delete-chapter) | Yes |
 |||||
-| POST | /api/books/author/pages/create-update/ | Create or update book page | Yes |
-| POST | /api/books/author/pages/publish/ | Publish book page | Yes |
-| POST | /api/books/author/pages/unpublish/ | Unpublish book page | Yes |
+| POST | /api/books/author/pages/create-update/ | [Create or update book page](#create-or-update-book-page) | Yes |
+| POST | /api/books/author/pages/publish/ | [Publish book page](#publish-book-page) | Yes |
+| POST | /api/books/author/pages/unpublish/ | [Unpublish book page](#unpublish-book-page) | Yes |
+| DELETE | /api/books/author/pages/delete/ | [Delete book page](#delete-book-page) | Yes |
 
 ### User endpoints (`/api/books/user/`)
 
@@ -1232,6 +1233,356 @@ Content-Type     application/json
 #### Notes:
 - Only draft chapters can be deleted
 - Published chapters must be unpublished before they can be deleted
+
+---
+
+### List all books (admin)
+#### Headers:
+```
+Authorization    Bearer <access_token>
+```
+#### Body:
+```
+None
+```
+#### Success response 200:
+```json
+{
+    "count": 2,
+    "books": [
+        {
+            "id": 1,
+            "title": "My First Book",
+            "description": "A great story",
+            "cover_image": "/media/bookCovers/paid/default.png",
+            "content_rating": null,
+            "book_tier": null,
+            "status": "pending_approval",
+            "is_visible": true,
+            "is_featured": false,
+            "is_new": false,
+            "is_complete": false,
+            "free_chapters": 3,
+            "has_pending_changes": false,
+            "author_type": "paid",
+            "author": {
+                "id": 2,
+                "pen_name": "Jane Doe",
+                "author_username": "janedoe"
+            },
+            "genres": [],
+            "relationship_tags": [],
+            "keywords": [],
+            "chapter_count": 0,
+            "published_chapter_count": 0,
+            "submitted_at": "2026-05-08T12:00:00Z",
+            "created_at": "2026-05-08T12:00:00Z",
+            "updated_at": "2026-05-08T12:00:00Z"
+        }
+    ]
+}
+```
+#### Query params (optional):
+```
+status                 filter by status: draft, pending_approval, approved, changes_requested, rejected
+author_type            filter by author type: paid, free
+has_pending_changes    filter by pending changes flag: true, false
+```
+#### Notes:
+- Admin access required
+- Returns all books across all authors ordered by most recently updated
+- Use `status=pending_approval` to see the approval queue
+
+---
+
+### Admin update book
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body (all fields optional except book_id):
+```json
+{
+    "book_id": 1,
+    "book_tier": 2,
+    "is_visible": true,
+    "is_featured": false,
+    "admin_notes": "Internal note about this book",
+    "reader_notes": "Note visible to the author"
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "Book \"My First Book\" updated successfully",
+    "book": {...}
+}
+```
+#### Error responses:
+```json
+403: {"error": "You do not have permission to perform this action"}
+400: {"error": "book_id is required"}
+400: {"error": "book_tier must be a number"}
+404: {"error": "Book not found"}
+```
+#### Notes:
+- Admin access required
+- Use `is_visible: false` to hide a book from new readers without deleting it — existing unlocked chapters remain accessible
+- `is_featured` requires offline payment arrangement with author before setting
+- `admin_notes` are internal only — not visible to the author
+- `reader_notes` are visible to the author
+
+---
+
+### Approve book
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "book_id": 1,
+    "reader_notes": "Your book has been approved. You can now publish chapters."
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "Book \"My First Book\" approved successfully",
+    "book": {...}
+}
+```
+#### Error responses:
+```json
+403: {"error": "You do not have permission to perform this action"}
+400: {"error": "book_id is required"}
+400: {"error": "reader_notes is required"}
+400: {"error": "Only books with status \"pending_approval\" can be approved"}
+404: {"error": "Book not found"}
+```
+#### Notes:
+- Admin access required
+- Only books with status `pending_approval` can be approved
+- Sets status to `approved` — author can now publish chapters
+- `reader_notes` is required — author receives this message
+
+---
+
+### Request book changes
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "book_id": 1,
+    "reader_notes": "Please update the book description before we can approve.",
+    "admin_notes": "Description too short, cover image low quality"
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "Changes requested for book \"My First Book\"",
+    "book": {...}
+}
+```
+#### Error responses:
+```json
+403: {"error": "You do not have permission to perform this action"}
+400: {"error": "book_id is required"}
+400: {"error": "reader_notes is required"}
+400: {"error": "Only books with status \"pending_approval\" can have changes requested"}
+404: {"error": "Book not found"}
+```
+#### Notes:
+- Admin access required
+- Only books with status `pending_approval` can have changes requested
+- Sets status to `changes_requested` — author must edit and resubmit
+- `reader_notes` is required — author receives this message explaining what to fix
+- `admin_notes` is optional — internal note for admin reference
+
+---
+
+### Reject book
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "book_id": 1,
+    "reader_notes": "Unfortunately your book does not meet our content guidelines.",
+    "admin_notes": "Content violations found in chapters 2 and 3"
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "Book \"My First Book\" rejected",
+    "book": {...}
+}
+```
+#### Error responses:
+```json
+403: {"error": "You do not have permission to perform this action"}
+400: {"error": "book_id is required"}
+400: {"error": "reader_notes is required"}
+400: {"error": "Only books with status \"pending_approval\" can be rejected"}
+404: {"error": "Book not found"}
+```
+#### Notes:
+- Admin access required
+- Only books with status `pending_approval` can be rejected
+- Sets status to `rejected` — book cannot be edited or resubmitted
+- `reader_notes` is required — author receives this message
+- `admin_notes` is optional — internal note for admin reference
+
+---
+
+### Create or update book page
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "book_id": 1,
+    "page_type": "prologue",
+    "content": "Page content goes here."
+}
+```
+#### Success response 200/201:
+```json
+{
+    "message": "Prologue saved successfully",
+    "page": {
+        "id": 1,
+        "page_type": "prologue",
+        "content": "Page content goes here.",
+        "is_published": false,
+        "created_at": "2026-05-08T12:00:00Z",
+        "updated_at": "2026-05-08T12:00:00Z"
+    }
+}
+```
+#### Error responses:
+```json
+403: {"error": "You must be an author to perform this action"}
+400: {"error": "book_id, page_type and content are required"}
+400: {"error": "Invalid page_type. Must be one of: prologue, authors_note, dedication, acknowledgements, next_book_teaser"}
+404: {"error": "Book not found"}
+```
+#### Notes:
+- This endpoint creates or updates — if a page of this type already exists for the book it will be overwritten
+- Valid page types: `prologue`, `authors_note`, `dedication`, `acknowledgements`, `next_book_teaser`
+- Each book can have at most one of each page type
+- Returns 201 on create, 200 on update
+
+---
+
+### Publish book page
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "book_id": 1,
+    "page_type": "prologue"
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "Prologue published successfully",
+    "page": {...}
+}
+```
+#### Error responses:
+```json
+403: {"error": "You must be an author to perform this action"}
+400: {"error": "book_id and page_type are required"}
+400: {"error": "Page is already published"}
+404: {"error": "Book not found"}
+404: {"error": "Page not found"}
+```
+#### Notes:
+- Can be published regardless of book approval status
+- Pages will only be visible to readers once the book itself is approved and has published chapters
+
+---
+
+### Unpublish book page
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "book_id": 1,
+    "page_type": "prologue"
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "Prologue unpublished successfully",
+    "page": {...}
+}
+```
+#### Error responses:
+```json
+403: {"error": "You must be an author to perform this action"}
+400: {"error": "book_id and page_type are required"}
+400: {"error": "Page is already unpublished"}
+404: {"error": "Book not found"}
+404: {"error": "Page not found"}
+```
+
+---
+
+### Delete book page
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "book_id": 1,
+    "page_type": "prologue"
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "Prologue deleted successfully"
+}
+```
+#### Error responses:
+```json
+403: {"error": "You must be an author to perform this action"}
+400: {"error": "book_id and page_type are required"}
+404: {"error": "Book not found"}
+404: {"error": "Page not found"}
+```
+#### Notes:
+- Deletes the page entirely — use unpublish if you just want to hide it from readers
 
 ---
 
