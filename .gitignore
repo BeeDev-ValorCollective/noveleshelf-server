@@ -9,6 +9,24 @@ lerna-debug.log*
 *__pycache__
 *logs/
 
+# ignore all uploaded media
+server/media/avatars/author/*
+server/media/avatars/reader/*
+server/media/avatars/free_author/*
+server/media/avatars/moderator/*
+server/media/avatars/admin/*
+server/media/bookCovers/free/*
+server/media/bookCovers/paid/*
+
+# but keep the defaults
+!server/media/avatars/author/default.png
+!server/media/avatars/reader/default.png
+!server/media/avatars/free_author/default.png
+!server/media/avatars/moderator/default.png
+!server/media/avatars/admin/default.png
+!server/media/bookCovers/free/default.png
+!server/media/bookCovers/paid/default.png
+
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 

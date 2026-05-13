@@ -39,7 +39,7 @@ INSTALLED_APPS = [
     'django_crontab',
     'userApp.apps.UserappConfig',
     'cronApp.apps.CronappConfig',
-    # 'booksApp.apps.BooksappConfig',
+    'booksApp.apps.BooksappConfig',
     'notificationApp.apps.NotificationappConfig',
 ]
 

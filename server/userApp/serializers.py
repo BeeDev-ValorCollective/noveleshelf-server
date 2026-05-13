@@ -4,6 +4,18 @@ from .models import UserProfile, UserWallet, AdminProfile, AuthorProfile, FreeAu
 
 User = get_user_model()
 
+class BooleanFormDataMixin:
+    def to_internal_value(self, data):
+        data = data.copy()
+        for field_name, field in self.fields.items():
+            if isinstance(field, serializers.BooleanField) and field_name in data:
+                val = data[field_name]
+                if isinstance(val, str):
+                    if val.lower() == 'true':
+                        data[field_name] = True
+                    elif val.lower() == 'false':
+                        data[field_name] = False
+        return super().to_internal_value(data)
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
@@ -42,7 +54,7 @@ class AdminProfileSerializer(serializers.ModelSerializer):
         fields = ['admin_username', 'is_super_admin', 'avatar_url', 'created_at']
 
 
-class AuthorProfileSerializer(serializers.ModelSerializer):
+class AuthorProfileSerializer(BooleanFormDataMixin, serializers.ModelSerializer):
     class Meta:
         model = AuthorProfile
         fields = ['author_username', 'pen_name', 'first_name', 'last_name', 'show_real_name', 'is_publicly_visible', 'is_active', 'is_featured', 'bio', 'tier', 'contract_link', 'avatar_url', 'created_at']

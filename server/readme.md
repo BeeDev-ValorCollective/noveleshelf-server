@@ -1,13 +1,23 @@
 # NovelShelf Django API
 
 This is the main backend API for the NovelShelf platform.
+
+## Digital Ocean Access/commands
+```
 ssh root@64.225.52.134
 cd /var/www/noveleshelf/noveleshelf-server
 git pull origin deployed
-systemctl restart gunicorn
+cd /server
+source /var/www/noveleshelf/venv/bin/activate
+python3 manage.py migrate
+sudo systemctl restart gunicorn
+sudo systemctl status gunicorn
+^c
+exit
 
 if using nano
 ^o to save
+```
 
 ---
 
