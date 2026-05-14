@@ -90,8 +90,9 @@ Handles all book, chapter, genre, and reading progress functionality.
 
 | Method | Endpoint | Description | Auth Required |
 |--------|----------|-------------|---------------|
-| GET | /api/books/public/books/ | List all visible books | No |
-| GET | /api/books/public/books/<id>/ | Get book details | No |
+| GET | /api/books/public/featured/ | [Featured books and authors](#featured-books-and-authors) | No |
+| GET | /api/books/public/books/ | [Browse all books](#browse-all-books) | No |
+| GET | /api/books/public/books/<id>/ | [Book detail](#book-detail) | No |
 
 ---
 
@@ -1583,6 +1584,225 @@ Content-Type     application/json
 ```
 #### Notes:
 - Deletes the page entirely — use unpublish if you just want to hide it from readers
+
+---
+
+### Featured books and authors
+#### Headers:
+```
+None
+```
+#### Body:
+```
+None
+```
+#### Success response 200:
+```json
+{
+    "featured_books": [
+        {
+            "id": 1,
+            "title": "My First Book",
+            "cover_image": "bookCovers/paid/default.png",
+            "description": "A great story about...",
+            "description_truncated": true,
+            "content_rating": {
+                "code": "G",
+                "name": "General"
+            },
+            "book_tier": 1,
+            "is_complete": false,
+            "is_new": true,
+            "is_featured": true,
+            "chapter_count": 5,
+            "published_chapter_count": 3,
+            "genres": [
+                {"id": 1, "name": "Romance"}
+            ],
+            "relationship_tags": [
+                {"id": 1, "code": "FF", "name": "Female/Female"}
+            ],
+            "keywords": [
+                {"id": 1, "name": "Dragons"}
+            ],
+            "author": {
+                "display_name": "Jane Doe",
+                "username": "janedoe",
+                "avatar_url": "avatars/author/default.png",
+                "is_featured": true,
+                "author_type": "paid"
+            }
+        }
+    ],
+    "featured_authors": [
+        {
+            "display_name": "Jane Doe",
+            "username": "janedoe",
+            "avatar_url": "avatars/author/default.png",
+            "bio": "Author bio here",
+            "is_featured": true,
+            "is_new": false,
+            "author_type": "paid",
+            "book_count": 3
+        }
+    ]
+}
+```
+#### Notes:
+- No auth required
+- Returns up to 6 featured books and up to 4 featured authors
+- Featured books ordered by most recently updated
+- Author display name follows: `show_real_name` → `pen_name` → `author_username` → `email`
+- Both paid and free authors can appear in featured authors
+- Only `is_publicly_visible=True` authors appear in featured authors
+
+---
+
+### Browse all books
+#### Headers:
+```
+None
+```
+#### Body:
+```
+None
+```
+#### Success response 200:
+```json
+{
+    "count": 24,
+    "page": 1,
+    "page_size": 12,
+    "total_pages": 2,
+    "results": [
+        {
+            "id": 1,
+            "title": "My First Book",
+            "cover_image": "bookCovers/paid/default.png",
+            "description": "A great story about...",
+            "description_truncated": true,
+            "content_rating": {
+                "code": "G",
+                "name": "General"
+            },
+            "book_tier": 1,
+            "is_complete": false,
+            "is_new": true,
+            "is_featured": false,
+            "chapter_count": 5,
+            "published_chapter_count": 3,
+            "genres": [],
+            "relationship_tags": [],
+            "keywords": [],
+            "author": {
+                "display_name": "Jane Doe",
+                "username": "janedoe",
+                "avatar_url": "avatars/author/default.png",
+                "is_featured": false,
+                "author_type": "paid"
+            }
+        }
+    ]
+}
+```
+#### Query params (optional):
+```
+search              search title, author name, genre, keyword, relationship tag
+genre               filter by genre id
+relationship_tag    filter by relationship tag id
+keyword             filter by keyword id
+content_rating      filter by content rating id
+is_featured         filter by featured status: true, false
+is_new              filter by new status: true, false
+is_complete         filter by completion status: true, false
+page                page number (default 1)
+page_size           results per page (default 12, max 50)
+```
+#### Notes:
+- No auth required
+- Only returns books with `status=approved` and `is_visible=True`
+- Description truncated to 150 characters — check `description_truncated` flag
+- Results ordered by most recently created
+- Both paid and free author books appear together
+
+---
+
+### Book detail
+#### Headers:
+```
+None
+```
+#### Body:
+```
+None
+```
+#### Success response 200:
+```json
+{
+    "id": 1,
+    "title": "My First Book",
+    "cover_image": "bookCovers/paid/default.png",
+    "description": "Full description here, not truncated.",
+    "description_truncated": false,
+    "content_rating": {
+        "code": "G",
+        "name": "General"
+    },
+    "book_tier": 1,
+    "is_complete": false,
+    "is_new": true,
+    "is_featured": false,
+    "chapter_count": 5,
+    "published_chapter_count": 3,
+    "genres": [
+        {"id": 1, "name": "Romance"}
+    ],
+    "relationship_tags": [
+        {"id": 1, "code": "FF", "name": "Female/Female"}
+    ],
+    "keywords": [
+        {"id": 1, "name": "Dragons"}
+    ],
+    "author": {
+        "display_name": "Jane Doe",
+        "username": "janedoe",
+        "avatar_url": "avatars/author/default.png",
+        "is_featured": false,
+        "author_type": "paid"
+    },
+    "pages": [
+        {
+            "id": 1,
+            "page_type": "prologue",
+            "content": "Prologue content here."
+        }
+    ],
+    "chapters": [
+        {
+            "id": 1,
+            "chapter_number": 1,
+            "title": "The Beginning",
+            "display_title": "Chapter 1: The Beginning",
+            "is_free": true,
+            "is_new": true,
+            "is_final": false,
+            "word_count": 1250,
+            "unlock_cost": 0,
+            "published_at": "2026-05-08T12:00:00Z"
+        }
+    ]
+}
+```
+#### Error responses:
+```json
+404: {"error": "Book not found"}
+```
+#### Notes:
+- No auth required
+- Returns full description — not truncated
+- Only published pages are included
+- Only published chapters are included — no content, just metadata for the chapter list
+- Chapter list ordered by chapter number
 
 ---
 
