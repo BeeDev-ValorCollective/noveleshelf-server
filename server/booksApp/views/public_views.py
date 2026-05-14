@@ -50,7 +50,7 @@ def format_book_summary(book):
     return {
         'id': book.id,
         'title': book.title,
-        'cover_image': str(book.cover_image) if book.cover_image else None,
+        'cover_image': book.cover_image.url if book.cover_image else None,
         'description': description[:150] if truncated else description,
         'description_truncated': truncated,
         'content_rating': {
@@ -80,7 +80,7 @@ def format_author_summary(profile, author_type):
         return {
             'display_name': name,
             'username': profile.author_username,
-            'avatar_url': str(profile.avatar_url) if profile.avatar_url else None,
+            'avatar_url': profile.avatar_url.url if profile.avatar_url else None,
             'bio': profile.bio,
             'is_featured': profile.is_featured,
             'is_new': False,
@@ -99,7 +99,7 @@ def format_author_summary(profile, author_type):
         return {
             'display_name': name,
             'username': profile.author_username,
-            'avatar_url': str(profile.avatar_url) if profile.avatar_url else None,
+            'avatar_url': profile.avatar_url.url if profile.avatar_url else None,
             'bio': profile.bio,
             'is_featured': profile.is_featured,
             'is_new': False,
@@ -263,15 +263,20 @@ def book_detail(request, book_id):
         book=book,
         status='published'
     ).order_by('chapter_number').values(
-        'id', 'chapter_number', 'title', 'display_title',
+        'id', 'chapter_number', 'title',
         'is_free', 'is_new', 'is_final', 'word_count',
         'unlock_cost', 'published_at'
     )
+
+    chapters_data = []
+    for chapter in chapters:
+        chapter['display_title'] = f'Chapter {chapter["chapter_number"]}: {chapter["title"]}' if chapter['title'] else f'Chapter {chapter["chapter_number"]}'
+        chapters_data.append(chapter)
 
     data = format_book_summary(book)
     data['description'] = book.description or ''
     data['description_truncated'] = False
     data['pages'] = list(pages)
-    data['chapters'] = list(chapters)
+    data['chapters'] = chapters_data
 
     return Response(data)
