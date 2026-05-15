@@ -4,8 +4,9 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 from django.db.models import Q
-from booksApp.models import Book, BookPage, Chapter, Genre, RelationshipTag, Keyword
+from booksApp.models import Book, BookPage, Chapter, Genre, RelationshipTag, Keyword, ContentRating
 from userApp.models import AuthorProfile, FreeAuthorProfile
+from booksApp.serializers import GenreSerializer, KeywordSerializer, RelationshipTagSerializer, ContentRatingSerializer
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -280,3 +281,13 @@ def book_detail(request, book_id):
     data['chapters'] = chapters_data
 
     return Response(data)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def book_reference_data(request):
+    return Response({
+        'genres': GenreSerializer(Genre.objects.filter(is_active=True), many=True).data,
+        'keywords': KeywordSerializer(Keyword.objects.filter(is_active=True), many=True).data,
+        'relationship_tags': RelationshipTagSerializer(RelationshipTag.objects.filter(is_active=True), many=True).data,
+        'content_ratings': ContentRatingSerializer(ContentRating.objects.all(), many=True).data,
+    })
