@@ -1199,3 +1199,25 @@ def delete_book_page(request):
     page.delete()
 
     return Response({'message': f'{page_type_display} deleted successfully'})
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_book(request, book_id):
+    author_type = request.query_params.get('author_type')
+    profile, profile_type = get_active_author_profile(request.user, author_type)
+ 
+    if profile_type == 'both':
+        return author_type_error_response()
+ 
+    if not profile:
+        return not_author_error_response()
+ 
+    book, _ = get_book_for_author(book_id, request.user, author_type)
+ 
+    if not book:
+        return Response(
+            {'error': 'Book not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+ 
+    return Response({'book': BookSerializer(book).data})
