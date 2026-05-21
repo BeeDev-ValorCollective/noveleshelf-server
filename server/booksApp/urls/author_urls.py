@@ -6,6 +6,7 @@ urlpatterns = [
     path('books/create/', author_views.create_book),
     path('books/', author_views.list_my_books),
     path('books/update/', author_views.update_book),
+    path('books/<int:book_id>/', author_views.get_book),
     path('books/submit/', author_views.submit_book),
     path('books/delete/', author_views.delete_book),
     path('books/genres/add/', author_views.add_genre),
