@@ -85,7 +85,7 @@ class Book(models.Model):
     is_featured = models.BooleanField(default=False)
     is_new = models.BooleanField(default=True)
     is_complete = models.BooleanField(default=False)
-    free_chapters = models.IntegerField(default=3)
+    free_chapters = models.IntegerField(default=10)
     has_pending_changes = models.BooleanField(default=False)
     submitted_at = models.DateTimeField(null=True, blank=True)
     admin_notes = models.TextField(null=True, blank=True)

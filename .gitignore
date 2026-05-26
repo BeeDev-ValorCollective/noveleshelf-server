@@ -17,6 +17,7 @@ server/media/avatars/moderator/*
 server/media/avatars/admin/*
 server/media/bookCovers/free/*
 server/media/bookCovers/paid/*
+server/media/bookCovers/*
 
 # but keep the defaults
 !server/media/avatars/author/default.png
@@ -26,6 +27,7 @@ server/media/bookCovers/paid/*
 !server/media/avatars/admin/default.png
 !server/media/bookCovers/free/default.png
 !server/media/bookCovers/paid/default.png
+!server/media/bookCovers/default.png
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
