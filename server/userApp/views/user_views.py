@@ -355,6 +355,10 @@ def upgrade_to_free_author(request):
         is_publicly_visible=True
     )
 
+    # record terms agreement
+    request.user.free_author_agreed_to_terms = True
+    request.user.free_author_agreed_at = timezone.now()
+
     if not is_paid_author:
         request.user.default_login_role = 'free_author'
         request.user.save()
