@@ -39,6 +39,13 @@ class Keyword(models.Model):
 
     def __str__(self):
         return self.name
+    
+def book_cover_upload_path(instance, filename):
+    if instance.author_profile:
+        return f'bookCovers/paid/{filename}'
+    elif instance.free_author_profile:
+        return f'bookCovers/free/{filename}'
+    return f'bookCovers/{filename}'
 
 
 class Book(models.Model):
@@ -68,7 +75,7 @@ class Book(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField(null=True, blank=True)
     cover_image = models.ImageField(
-        upload_to='bookCovers/',
+        upload_to=book_cover_upload_path,
         null=True,
         blank=True,
         default='bookCovers/default.png'
@@ -85,7 +92,7 @@ class Book(models.Model):
     is_featured = models.BooleanField(default=False)
     is_new = models.BooleanField(default=True)
     is_complete = models.BooleanField(default=False)
-    free_chapters = models.IntegerField(default=3)
+    free_chapters = models.IntegerField(default=10)
     has_pending_changes = models.BooleanField(default=False)
     submitted_at = models.DateTimeField(null=True, blank=True)
     admin_notes = models.TextField(null=True, blank=True)
