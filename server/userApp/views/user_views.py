@@ -489,6 +489,11 @@ def submit_author_request(request):
     genre_interest = request.data.get('genre_interest')
     writing_sample_link = request.data.get('writing_sample_link')
 
+    if request_type == 'new_author':
+        request.user.paid_author_agreed_to_terms = True
+        request.user.paid_author_agreed_at = timezone.now()
+        request.user.save()
+
     author_request = AuthorRequest.objects.create(
         user=request.user,
         request_type=request_type,
