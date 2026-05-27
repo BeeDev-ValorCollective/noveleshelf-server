@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     'cronApp.apps.CronappConfig',
     'booksApp.apps.BooksappConfig',
     'notificationApp.apps.NotificationappConfig',
+    'currencyApp.apps.CurrencyappConfig',
 ]
 
 MIDDLEWARE = [

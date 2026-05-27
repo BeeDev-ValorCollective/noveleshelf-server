@@ -10,7 +10,7 @@ def handle_new_user(sender, instance, created, **kwargs):
     if created:
         instance.default_login_role = 'reader'
         instance.verification_grace_ends = timezone.now() + timedelta(days=7)
-        
+
         if User.objects.count() == 1:
             instance.is_verified = True
             instance.is_staff = True
@@ -20,7 +20,10 @@ def handle_new_user(sender, instance, created, **kwargs):
                 admin_username=instance.email,
                 is_super_admin=True
             )
-        
+            # create default platform settings
+            from currencyApp.models import PlatformSettings
+            PlatformSettings.objects.get_or_create(id=1, defaults={'daily_black_ink_reward': 2})
+
         instance.save()
         UserProfile.objects.create(user=instance)
         UserWallet.objects.create(user=instance)
