@@ -7,9 +7,10 @@ This is the main backend API for the NovelShelf platform.
 ssh root@64.225.52.134
 cd /var/www/noveleshelf/noveleshelf-server
 git pull origin deployed
-cd /server
+cd server
 source /var/www/noveleshelf/venv/bin/activate
 python3 manage.py migrate
+python3 manage.py flush (if needed)
 sudo systemctl restart gunicorn
 sudo systemctl status gunicorn
 ^c
@@ -20,6 +21,11 @@ if using nano
 
 python3 manage.py crontab add
 python3 manage.py crontab show
+
+sudo apt update && sudo apt upgrade -y
+sudo reboot
+sudo apt install unattended-upgrades
+sudo dpkg-reconfigure unattended-upgrades
 ```
 
 ---
