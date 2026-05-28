@@ -17,6 +17,9 @@ exit
 
 if using nano
 ^o to save
+
+python3 manage.py crontab add
+python3 manage.py crontab show
 ```
 
 ---
