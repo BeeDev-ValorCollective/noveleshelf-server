@@ -36,6 +36,18 @@ class User(AbstractUser):
     )
     is_verified = models.BooleanField(default=False)
     verification_grace_ends = models.DateTimeField(null=True, blank=True)
+    # Terms agreements
+    free_author_agreed_to_terms = models.BooleanField(default=False)
+    free_author_agreed_at = models.DateTimeField(null=True, blank=True)
+
+    paid_author_agreed_to_terms = models.BooleanField(default=False)
+    paid_author_agreed_at = models.DateTimeField(null=True, blank=True)
+
+    moderator_agreed_to_terms = models.BooleanField(default=False)
+    moderator_agreed_at = models.DateTimeField(null=True, blank=True)
+
+    admin_agreed_to_terms = models.BooleanField(default=False)
+    admin_agreed_at = models.DateTimeField(null=True, blank=True)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []
@@ -98,6 +110,7 @@ class AuthorProfile(models.Model):
     is_featured = models.BooleanField(default=False)
     bio = models.TextField(null=True, blank=True)
     tier = models.IntegerField(default=1)
+    free_chapters = models.IntegerField(default=10, null=True, blank=True)
     contract_link = models.URLField(null=True, blank=True)
     is_publicly_visible = models.BooleanField(default=False)
     avatar_url = models.ImageField(

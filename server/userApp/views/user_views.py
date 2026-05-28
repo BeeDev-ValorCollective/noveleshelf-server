@@ -355,6 +355,10 @@ def upgrade_to_free_author(request):
         is_publicly_visible=True
     )
 
+    # record terms agreement
+    request.user.free_author_agreed_to_terms = True
+    request.user.free_author_agreed_at = timezone.now()
+
     if not is_paid_author:
         request.user.default_login_role = 'free_author'
         request.user.save()
@@ -484,6 +488,11 @@ def submit_author_request(request):
     bio = request.data.get('bio')
     genre_interest = request.data.get('genre_interest')
     writing_sample_link = request.data.get('writing_sample_link')
+
+    if request_type == 'new_author':
+        request.user.paid_author_agreed_to_terms = True
+        request.user.paid_author_agreed_at = timezone.now()
+        request.user.save()
 
     author_request = AuthorRequest.objects.create(
         user=request.user,

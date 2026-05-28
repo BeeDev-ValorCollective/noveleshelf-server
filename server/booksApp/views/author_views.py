@@ -127,6 +127,7 @@ def create_book(request):
             content_rating=content_rating,
             status='draft',
             book_tier=profile.tier,  # pull from author profile
+            free_chapters=profile.free_chapters if profile.free_chapters is not None else 10,
             cover_image=cover_image if cover_image else 'bookCovers/paid/default.png'
         )
     else:
@@ -137,6 +138,7 @@ def create_book(request):
             content_rating=content_rating,
             status='approved',
             book_tier=None,  # free author books have no tier
+            free_chapters=0,
             cover_image=cover_image if cover_image else 'bookCovers/free/default.png'
         )
 
