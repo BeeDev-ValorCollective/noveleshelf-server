@@ -201,6 +201,12 @@ LOGGING = {
             'filename': os.path.join(BASE_DIR, 'logs/email.log'),
             'formatter': 'verbose',
         },
+        'django_file': {
+            'level': 'ERROR',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs/django.log'),
+            'formatter': 'verbose',
+        },
     },
     'loggers': {
         'cron': {
@@ -211,6 +217,11 @@ LOGGING = {
         'utils.email_utils': {
             'handlers': ['email_file'],
             'level': 'INFO',
+            'propagate': False,
+        },
+        'django': {
+            'handlers': ['django_file'],
+            'level': 'ERROR',
             'propagate': False,
         },
     },
