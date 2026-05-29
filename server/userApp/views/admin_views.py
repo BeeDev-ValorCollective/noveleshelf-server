@@ -4,9 +4,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
 from ..serializers import AdminProfileSerializer, AuthorProfileSerializer, ModeratorProfileSerializer, UserSerializer, FreeAuthorProfileSerializer, AuthorRequestAdminSerializer, AuthorRequestSerializer
-from ..models import AdminProfile, AuthorProfile, ModeratorProfile, FreeAuthorProfile, AuthorRequest
-from utils.email_utils import send_author_approved_email, send_author_deactivated_email, send_author_reactivated_email
+from ..models import AdminProfile, AuthorProfile, ModeratorProfile, FreeAuthorProfile, AuthorRequest, EmailVerificationToken
+from utils.email_utils import send_author_approved_email, send_author_deactivated_email, send_author_reactivated_email, send_notification, send_verification_email
 from django.db.models import Q
+import threading
 
 User = get_user_model()
 
@@ -460,10 +461,23 @@ def update_author_request(request):
 
     author_request.save()
 
+    if status_value:
+        thread = threading.Thread(
+            target=send_notification,
+            kwargs={
+                'notification_code': 'author_request_status_change',
+                'user': author_request.user,
+                'context': {'status': status_value, 'reader_notes': reader_notes or ''}
+            }
+        )
+        thread.daemon = True
+        thread.start()
+
     return Response({
         'message': 'Request updated successfully',
         'request': AuthorRequestAdminSerializer(author_request).data
     })
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -536,10 +550,9 @@ def approve_author_request(request):
     author_request.save()
 
     # send approval email
-    try:
-        send_author_approved_email(user, author_request.request_type)
-    except Exception as e:
-        print(f'Author approved email failed: {e}')
+    thread = threading.Thread(target=send_author_approved_email, args=(user, author_request.request_type))
+    thread.daemon = True
+    thread.start()
 
     return Response({
         'message': f'{user.email} request has been approved successfully',
@@ -590,10 +603,16 @@ def deactivate_author(request):
     # TODO: update book visibility when booksApp is built
     # deactivate: Book.objects.filter(author_profile=user.author_profile).update(is_visible=False)
 
-    try:
-        send_author_deactivated_email(user)
-    except Exception as e:
-        print(f'Author deactivated email failed: {e}')
+    thread = threading.Thread(target=send_author_deactivated_email, args=(user,))
+    thread.daemon = True
+    thread.start()
+
+    thread2 = threading.Thread(
+        target=send_notification,
+        kwargs={'notification_code': 'author_deactivated', 'user': user, 'triggered_by': request.user}
+    )
+    thread2.daemon = True
+    thread2.start()
 
     return Response({
         'message': f'{user.email} author profile has been deactivated. All books will be hidden from new readers.'
@@ -643,10 +662,16 @@ def reactivate_author(request):
     # TODO: update book visibility when booksApp is built
     # reactivate: books stay hidden, admin manually unhides per book
 
-    try:
-        send_author_reactivated_email(user)
-    except Exception as e:
-        print(f'Author reactivated email failed: {e}')
+    thread = threading.Thread(target=send_author_reactivated_email, args=(user,))
+    thread.daemon = True
+    thread.start()
+
+    thread2 = threading.Thread(
+        target=send_notification,
+        kwargs={'notification_code': 'author_reactivated', 'user': user, 'triggered_by': request.user}
+    )
+    thread2.daemon = True
+    thread2.start()
 
     return Response({
         'message': f'{user.email} author profile has been reactivated. Books visibility must be manually updated.'
@@ -703,4 +728,48 @@ def admin_update_free_author(request):
     return Response({
         'message': f'{user.email} free author profile updated successfully',
         'free_author_profile': FreeAuthorProfileSerializer(free_author_profile).data
+    })
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def admin_resend_verification(request):
+    if not request.user.is_staff:
+        return Response(
+            {'error': 'You do not have permission to perform this action'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    user_id = request.data.get('user_id')
+
+    if not user_id:
+        return Response(
+            {'error': 'user_id is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response(
+            {'error': 'User not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    if user.is_verified:
+        return Response(
+            {'error': 'User email is already verified'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    EmailVerificationToken.objects.filter(
+        user=user,
+        is_used=False
+    ).update(is_used=True)
+
+    thread = threading.Thread(target=send_verification_email, args=(user,))
+    thread.daemon = True
+    thread.start()
+
+    return Response({
+        'message': f'Verification email sent to {user.email}'
     })

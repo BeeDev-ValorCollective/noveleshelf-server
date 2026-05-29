@@ -5,13 +5,21 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 from django.contrib.auth import get_user_model
-from ..serializers import UserProfileSerializer, AdminProfileSerializer, AuthorProfileSerializer, ModeratorProfileSerializer, FreeAuthorProfileSerializer, AuthorRequestSerializer
-from ..models import UserProfile, AdminProfile, AuthorProfile, ModeratorProfile, FreeAuthorProfile, AuthorRequest
-from utils.email_utils import send_verification_email
+from ..serializers import UserProfileSerializer, AdminProfileSerializer, AuthorProfileSerializer, ModeratorProfileSerializer, FreeAuthorProfileSerializer, AuthorRequestSerializer, UserFollowAuthorSerializer, FreeAuthorProfileDashboardSerializer, AuthorProfileDashboardSerializer
+from ..models import UserProfile, AdminProfile, AuthorProfile, ModeratorProfile, FreeAuthorProfile, AuthorRequest, UserFollowAuthor
+from utils.email_utils import send_verification_email, send_notification
 from django.utils import timezone
 from datetime import timedelta
+import threading
 
 User = get_user_model()
+
+def parse_bool(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() == 'true'
+    return False
 
 
 @api_view(['PATCH'])
@@ -23,6 +31,8 @@ def update_profile(request):
     username = request.data.get('username')
     bio = request.data.get('bio')
     avatar = request.data.get('avatar_url')
+    first_name = request.data.get('first_name')
+    last_name = request.data.get('last_name')
     
     if username:
         if UserProfile.objects.filter(username=username).exclude(user=request.user).exists():
@@ -31,6 +41,12 @@ def update_profile(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         profile.username = username
+    
+    if first_name is not None:
+        profile.first_name = first_name
+
+    if last_name is not None:
+        profile.last_name = last_name
     
     if bio is not None:
         profile.bio = bio
@@ -107,7 +123,7 @@ def update_author_profile(request):
         author_profile.author_username = author_username
     
     if show_real_name is not None:
-        author_profile.show_real_name = show_real_name
+        author_profile.show_real_name = parse_bool(show_real_name)
     
     if pen_name is not None:
         author_profile.pen_name = pen_name
@@ -309,10 +325,9 @@ def change_email(request):
         print(f'Token blacklist error: {e}')
 
     # send verification email to new address
-    try:
-        send_verification_email(request.user)
-    except Exception as e:
-        print(f'Verification email failed: {e}')
+    thread = threading.Thread(target=send_verification_email, args=(request.user,))
+    thread.daemon = True
+    thread.start()
 
     return Response({
         'message': f'Email changed successfully. Please verify your new email address at {new_email}. You have been logged out.'
@@ -340,9 +355,20 @@ def upgrade_to_free_author(request):
         is_publicly_visible=True
     )
 
+    # record terms agreement
+    request.user.free_author_agreed_to_terms = True
+    request.user.free_author_agreed_at = timezone.now()
+
     if not is_paid_author:
         request.user.default_login_role = 'free_author'
         request.user.save()
+
+    thread = threading.Thread(
+        target=send_notification,
+        kwargs={'notification_code': 'free_author_upgrade', 'user': request.user}
+    )
+    thread.daemon = True
+    thread.start()
 
     return Response({
         'message': 'You have been upgraded to free author successfully',
@@ -373,7 +399,7 @@ def update_free_author_profile(request):
     is_publicly_visible = request.data.get('is_publicly_visible')
 
     if is_publicly_visible is not None:
-        free_author_profile.is_publicly_visible = is_publicly_visible
+        free_author_profile.is_publicly_visible = parse_bool(is_publicly_visible)
 
     if author_username:
         if FreeAuthorProfile.objects.filter(author_username=author_username).exclude(user=request.user).exists():
@@ -396,7 +422,7 @@ def update_free_author_profile(request):
         free_author_profile.bio = bio
 
     if show_real_name is not None:
-        free_author_profile.show_real_name = show_real_name
+        free_author_profile.show_real_name = parse_bool(show_real_name)
 
     if avatar:
         free_author_profile.avatar_url = avatar
@@ -463,6 +489,11 @@ def submit_author_request(request):
     genre_interest = request.data.get('genre_interest')
     writing_sample_link = request.data.get('writing_sample_link')
 
+    if request_type == 'new_author':
+        request.user.paid_author_agreed_to_terms = True
+        request.user.paid_author_agreed_at = timezone.now()
+        request.user.save()
+
     author_request = AuthorRequest.objects.create(
         user=request.user,
         request_type=request_type,
@@ -470,6 +501,13 @@ def submit_author_request(request):
         genre_interest=genre_interest,
         writing_sample_link=writing_sample_link
     )
+
+    thread = threading.Thread(
+        target=send_notification,
+        kwargs={'notification_code': 'new_author_request', 'user': request.user, 'context': {'request_type': request_type}}
+    )
+    thread.daemon = True
+    thread.start()
 
     return Response({
         'message': 'Your request has been submitted successfully. We will be in touch.',
@@ -484,4 +522,158 @@ def get_my_author_requests(request):
     return Response({
         'count': requests.count(),
         'requests': AuthorRequestSerializer(requests, many=True).data
+    })
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def follow_author(request):
+    author_type = request.data.get('author_type')
+    author_id = request.data.get('author_id')
+
+    if not author_type or not author_id:
+        return Response(
+            {'error': 'author_type and author_id are required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if author_type not in ['paid', 'free']:
+        return Response(
+            {'error': 'author_type must be paid or free'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if author_type == 'paid':
+        try:
+            author_profile = AuthorProfile.objects.get(id=author_id, is_active=True)
+        except AuthorProfile.DoesNotExist:
+            return Response(
+                {'error': 'Author not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if UserFollowAuthor.objects.filter(user=request.user, author_profile=author_profile).exists():
+            return Response(
+                {'error': 'You are already following this author'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        follow = UserFollowAuthor.objects.create(
+            user=request.user,
+            author_profile=author_profile
+        )
+
+    else:
+        try:
+            free_author_profile = FreeAuthorProfile.objects.get(id=author_id, is_active=True)
+        except FreeAuthorProfile.DoesNotExist:
+            return Response(
+                {'error': 'Author not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if UserFollowAuthor.objects.filter(user=request.user, free_author_profile=free_author_profile).exists():
+            return Response(
+                {'error': 'You are already following this author'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        follow = UserFollowAuthor.objects.create(
+            user=request.user,
+            free_author_profile=free_author_profile
+        )
+
+    return Response({
+        'message': 'Author followed successfully',
+        'follow': UserFollowAuthorSerializer(follow).data
+    }, status=status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def unfollow_author(request):
+    author_type = request.data.get('author_type')
+    author_id = request.data.get('author_id')
+
+    if not author_type or not author_id:
+        return Response(
+            {'error': 'author_type and author_id are required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if author_type not in ['paid', 'free']:
+        return Response(
+            {'error': 'author_type must be paid or free'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if author_type == 'paid':
+        try:
+            follow = UserFollowAuthor.objects.get(
+                user=request.user,
+                author_profile_id=author_id
+            )
+        except UserFollowAuthor.DoesNotExist:
+            return Response(
+                {'error': 'You are not following this author'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+    else:
+        try:
+            follow = UserFollowAuthor.objects.get(
+                user=request.user,
+                free_author_profile_id=author_id
+            )
+        except UserFollowAuthor.DoesNotExist:
+            return Response(
+                {'error': 'You are not following this author'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+    follow.delete()
+
+    return Response({
+        'message': 'Author unfollowed successfully'
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def my_following(request):
+    following = UserFollowAuthor.objects.filter(
+        user=request.user
+    ).select_related(
+        'author_profile',
+        'free_author_profile'
+    ).order_by('-followed_at')
+
+    return Response({
+        'count': following.count(),
+        'following': UserFollowAuthorSerializer(following, many=True).data
+    })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def author_dashboard(request):
+    if not hasattr(request.user, 'author_profile'):
+        return Response(
+            {'error': 'Author profile not found'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    return Response({
+        'author_profile': AuthorProfileDashboardSerializer(request.user.author_profile).data
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def free_author_dashboard(request):
+    if not hasattr(request.user, 'free_author_profile'):
+        return Response(
+            {'error': 'Free author profile not found'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    return Response({
+        'free_author_profile': FreeAuthorProfileDashboardSerializer(request.user.free_author_profile).data
     })

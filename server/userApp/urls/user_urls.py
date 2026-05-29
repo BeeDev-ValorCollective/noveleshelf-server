@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import user_views
+from userApp.views import user_views
 
 urlpatterns = [
     path('profile/update/', user_views.update_profile),
@@ -13,4 +13,9 @@ urlpatterns = [
     path('free-author-profile/update/', user_views.update_free_author_profile),
     path('author-request/submit/', user_views.submit_author_request),
     path('author-request/my-requests/', user_views.get_my_author_requests),
+    path('follow/', user_views.follow_author),
+    path('unfollow/', user_views.unfollow_author),
+    path('following/', user_views.my_following),
+    path('author-dashboard/', user_views.author_dashboard),
+    path('free-author-dashboard/', user_views.free_author_dashboard),
 ]

@@ -38,15 +38,37 @@ class BookPageSerializer(serializers.ModelSerializer):
 
 
 class ChapterSerializer(serializers.ModelSerializer):
+    display_title = serializers.SerializerMethodField()
+
     class Meta:
         model = Chapter
-        fields = ['id', 'chapter_number', 'title', 'status', 'is_free', 'is_new', 'unlock_cost', 'published_at', 'created_at', 'updated_at']
+        fields = [
+            'id', 'chapter_number', 'title', 'display_title', 'status',
+            'is_free', 'is_new', 'is_final', 'word_count', 'unlock_cost',
+            'published_at', 'created_at', 'updated_at'
+        ]
+
+    def get_display_title(self, obj):
+        if obj.title:
+            return f'Chapter {obj.chapter_number}: {obj.title}'
+        return f'Chapter {obj.chapter_number}'
 
 
 class ChapterDetailSerializer(serializers.ModelSerializer):
+    display_title = serializers.SerializerMethodField()
+
     class Meta:
         model = Chapter
-        fields = ['id', 'chapter_number', 'title', 'content', 'status', 'is_free', 'is_new', 'unlock_cost', 'published_at', 'created_at', 'updated_at']
+        fields = [
+            'id', 'chapter_number', 'title', 'display_title', 'content',
+            'status', 'is_free', 'is_new', 'is_final', 'word_count',
+            'unlock_cost', 'published_at', 'created_at', 'updated_at'
+        ]
+
+    def get_display_title(self, obj):
+        if obj.title:
+            return f'Chapter {obj.chapter_number}: {obj.title}'
+        return f'Chapter {obj.chapter_number}'
 
 
 class BookReviewSerializer(serializers.ModelSerializer):
@@ -62,45 +84,94 @@ class ChapterCommentSerializer(serializers.ModelSerializer):
 
 
 class BookSerializer(serializers.ModelSerializer):
-    genres = GenreSerializer(many=True, read_only=True, source='genres.all')
-    relationship_tags = RelationshipTagSerializer(many=True, read_only=True, source='relationship_tags.all')
-    keywords = KeywordSerializer(many=True, read_only=True, source='keywords.all')
+    genres = serializers.SerializerMethodField()
+    relationship_tags = serializers.SerializerMethodField()
+    keywords = serializers.SerializerMethodField()
     content_rating = ContentRatingSerializer(read_only=True)
     pages = BookPageSerializer(many=True, read_only=True)
+    chapters = ChapterSerializer(many=True, read_only=True)
     chapter_count = serializers.SerializerMethodField()
+    published_chapter_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Book
         fields = [
             'id', 'title', 'description', 'cover_image', 'content_rating',
             'book_tier', 'status', 'is_visible', 'is_featured', 'is_new',
-            'is_complete', 'free_chapters', 'genres', 'relationship_tags',
-            'keywords', 'pages', 'chapter_count', 'created_at', 'updated_at'
+            'is_complete', 'free_chapters', 'has_pending_changes',
+            'genres', 'relationship_tags', 'keywords', 'pages',
+            'chapters', 'chapter_count', 'published_chapter_count',
+            'created_at', 'updated_at'
         ]
 
+    def get_genres(self, obj):
+        return GenreSerializer(
+            [bg.genre for bg in obj.genres.select_related('genre').all()],
+            many=True
+        ).data
+
+    def get_relationship_tags(self, obj):
+        return RelationshipTagSerializer(
+            [bt.tag for bt in obj.relationship_tags.select_related('tag').all()],
+            many=True
+        ).data
+
+    def get_keywords(self, obj):
+        return KeywordSerializer(
+            [bk.keyword for bk in obj.keywords.select_related('keyword').all()],
+            many=True
+        ).data
+
     def get_chapter_count(self, obj):
+        return obj.chapters.count()
+
+    def get_published_chapter_count(self, obj):
         return obj.chapters.filter(status='published').count()
 
 
 class BookAdminSerializer(serializers.ModelSerializer):
-    genres = GenreSerializer(many=True, read_only=True, source='genres.all')
-    relationship_tags = RelationshipTagSerializer(many=True, read_only=True, source='relationship_tags.all')
-    keywords = KeywordSerializer(many=True, read_only=True, source='keywords.all')
+    genres = serializers.SerializerMethodField()
+    relationship_tags = serializers.SerializerMethodField()
+    keywords = serializers.SerializerMethodField()
     content_rating = ContentRatingSerializer(read_only=True)
     pages = BookPageSerializer(many=True, read_only=True)
+    chapters = ChapterSerializer(many=True, read_only=True)
     chapter_count = serializers.SerializerMethodField()
+    published_chapter_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Book
         fields = [
             'id', 'title', 'description', 'cover_image', 'content_rating',
             'book_tier', 'status', 'is_visible', 'is_featured', 'is_new',
-            'is_complete', 'free_chapters', 'admin_notes', 'reader_notes',
-            'genres', 'relationship_tags', 'keywords', 'pages',
-            'chapter_count', 'created_at', 'updated_at'
+            'is_complete', 'free_chapters', 'has_pending_changes', 'submitted_at',
+            'admin_notes', 'reader_notes', 'genres', 'relationship_tags',
+            'keywords', 'pages', 'chapters', 'chapter_count',
+            'published_chapter_count', 'created_at', 'updated_at'
         ]
 
+    def get_genres(self, obj):
+        return GenreSerializer(
+            [bg.genre for bg in obj.genres.select_related('genre').all()],
+            many=True
+        ).data
+
+    def get_relationship_tags(self, obj):
+        return RelationshipTagSerializer(
+            [bt.tag for bt in obj.relationship_tags.select_related('tag').all()],
+            many=True
+        ).data
+
+    def get_keywords(self, obj):
+        return KeywordSerializer(
+            [bk.keyword for bk in obj.keywords.select_related('keyword').all()],
+            many=True
+        ).data
+
     def get_chapter_count(self, obj):
+        return obj.chapters.count()
+
+    def get_published_chapter_count(self, obj):
         return obj.chapters.filter(status='published').count()
 
 

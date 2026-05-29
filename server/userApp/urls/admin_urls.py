@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import admin_views
+from userApp.views import admin_views
 
 urlpatterns = [
     path('author-upgrade/', admin_views.upgrade_to_author),
@@ -15,4 +15,5 @@ urlpatterns = [
     path('author-request/approve/', admin_views.approve_author_request),
     path('deactivate-author/', admin_views.deactivate_author),
     path('reactivate-author/', admin_views.reactivate_author),
+    path('resend-verification/', admin_views.admin_resend_verification),
 ]

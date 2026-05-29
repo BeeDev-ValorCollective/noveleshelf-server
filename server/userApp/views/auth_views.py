@@ -5,10 +5,12 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken, OutstandingToken, BlacklistedToken
 from django.contrib.auth import get_user_model
 from ..serializers import RegisterSerializer, UserSerializer
-from utils.email_utils import send_verification_email, send_password_reset_email
+from utils.email_utils import send_verification_email, send_password_reset_email, send_notification
 from userApp.models import EmailVerificationToken, PasswordResetToken
+from currencyApp.views.reward_views import process_daily_login_reward
 from django.utils import timezone
 from ..models import EmailVerificationToken
+import threading
 
 User = get_user_model()
 
@@ -20,10 +22,13 @@ def register(request):
         user = serializer.save()
         refresh = RefreshToken.for_user(user)
 
-        try:
-            send_verification_email(user)
-        except Exception as e:
-            print(f'Verification email failed: {e}')
+        thread = threading.Thread(target=send_verification_email, args=(user,))
+        thread.daemon = True
+        thread.start()
+
+        thread2 = threading.Thread(target=send_notification, kwargs={'notification_code': 'new_user_registered', 'user': user})
+        thread2.daemon = True
+        thread2.start()
 
         return Response({
             'user': UserSerializer(user).data,
@@ -96,6 +101,7 @@ def login(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def me(request):
+    process_daily_login_reward(request.user)
     serializer = UserSerializer(request.user)
     return Response(serializer.data)
 
@@ -163,16 +169,13 @@ def resend_verification(request):
         is_used=False
     ).update(is_used=True)
     
-    try:
-        send_verification_email(request.user)
-        return Response({
-            'message': f'Verification email sent to {request.user.email}. Please check your inbox.'
-        })
-    except Exception as e:
-        return Response(
-            {'error': 'Failed to send verification email. Please try again.'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    thread = threading.Thread(target=send_verification_email, args=(request.user,))
+    thread.daemon = True
+    thread.start()
+    
+    return Response({
+        'message': f'Verification email sent to {request.user.email}. Please check your inbox.'
+    })
     
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -188,32 +191,24 @@ def forgot_password(request):
     try:
         user = User.objects.get(email=email)
     except User.DoesNotExist:
-        # don't reveal if email exists or not for security
         return Response({
             'message': 'If an account exists with that email you will receive a password reset link shortly.'
         })
 
-    # check if email is verified
     if not user.is_verified:
         return Response(
             {'error': 'Your email address is not verified. Please verify your email before resetting your password.'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    # invalidate any existing unused reset tokens
     PasswordResetToken.objects.filter(
         user=user,
         is_used=False
     ).update(is_used=True)
 
-    try:
-        send_password_reset_email(user)
-    except Exception as e:
-        print(f'Password reset email failed: {e}')
-        return Response(
-            {'error': 'Failed to send reset email. Please try again.'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    thread = threading.Thread(target=send_password_reset_email, args=(user,))
+    thread.daemon = True
+    thread.start()
 
     return Response({
         'message': 'If an account exists with that email you will receive a password reset link shortly.'

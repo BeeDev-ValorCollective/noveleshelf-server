@@ -21,6 +21,29 @@ CSRF_TRUSTED_ORIGINS = []
 
 CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS')
 
+CORS_ALLOW_CREDENTIALS = True
+
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -38,6 +61,8 @@ INSTALLED_APPS = [
     'userApp.apps.UserappConfig',
     'cronApp.apps.CronappConfig',
     'booksApp.apps.BooksappConfig',
+    'notificationApp.apps.NotificationappConfig',
+    'currencyApp.apps.CurrencyappConfig',
 ]
 
 MIDDLEWARE = [
@@ -59,12 +84,14 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=8),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
 }
 CRONJOBS = [
-    ('0 0 * * *', 'cron.user_cron.deactivate_unverified_users'),
-    ('0 3 * * 0', 'cron.user_cron.flush_expired_tokens'),
+    ('0 0 * * *', 'cron.user_cron.deactivate_unverified_users'), # runs 00:00 UTC Daily
+    ('0 3 * * 0', 'cron.user_cron.flush_expired_tokens'), # runs 03:00 UTC Sundays
     ('0 1 * * *', 'cron.books_cron.mark_books_not_new'),
     ('0 1 * * *', 'cron.books_cron.mark_chapters_not_new'),
 ]
@@ -89,7 +116,11 @@ TEMPLATES = [
 WSGI_APPLICATION = 'server.wsgi.application'
 
 db_init_command = env('DB_INIT_COMMAND', default='')
-db_options = {}
+db_options = {
+    'ssl': {
+        'ssl-mode': env('DB_SSL_MODE', default=''),
+    }
+}
 if db_init_command:
     db_options['init_command'] = db_init_command
 
@@ -100,7 +131,7 @@ DATABASES = {
         'USER': env('DB_USER'),
         'PASSWORD': env('DB_PASSWORD'),
         'HOST': env('DB_HOST', default='localhost'),
-        'PORT': '3306',
+        'PORT': env('DB_PORT', default='3306'),
         'OPTIONS': db_options,
     }
 }
@@ -124,7 +155,7 @@ AUTH_USER_MODEL = 'userApp.User'
 
 # Internationalization
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'US/Eastern'
+TIME_ZONE = 'America/New_York'
 USE_I18N = True
 USE_TZ = True
 
@@ -145,8 +176,9 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = env('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD')
-DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default=env('EMAIL_HOST_USER'))
+DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default=env('BACKUP_FROM_EMAIL'))
 FRONTEND_URL = env('FRONTEND_URL', default='http://localhost:5173')
+BCC_EMAIL = env('BCC_EMAIL', default=env('BACKUP_FROM_EMAIL'))
 
 LOGGING = {
     'version': 1,
@@ -164,12 +196,34 @@ LOGGING = {
             'filename': os.path.join(BASE_DIR, 'logs/cron.log'),
             'formatter': 'verbose',
         },
+        'email_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs/email.log'),
+            'formatter': 'verbose',
+        },
+        'django_file': {
+            'level': 'ERROR',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs/django.log'),
+            'formatter': 'verbose',
+        },
     },
     'loggers': {
         'cron': {
             'handlers': ['cron_file'],
             'level': 'INFO',
             'propagate': True,
+        },
+        'utils.email_utils': {
+            'handlers': ['email_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django': {
+            'handlers': ['django_file'],
+            'level': 'ERROR',
+            'propagate': False,
         },
     },
 }

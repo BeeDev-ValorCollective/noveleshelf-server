@@ -36,6 +36,11 @@ Handles all authentication, user profiles, and admin user management.
 | PATCH | /api/user/free-author-profile/update/ | [Update free author profile](#update-free-author-profile) | Yes |
 | POST | /api/user/author-request/submit/ | [Submit author request](#submit-author-request) | Yes |
 | GET | /api/user/author-request/my-requests/ | [Get my author requests](#get-my-author-requests) | Yes |
+| POST | /api/user/follow/ | [Follow an author](#follow-author) | Yes |
+| POST | /api/user/unfollow/ | [Unfollow an author](#unfollow-author) | Yes |
+| GET | /api/user/following/ | [My following list](#my-following) | Yes |
+| GET | /api/user/author-dashboard/ | [Author dashboard](#author-dashboard) | Yes |
+| GET | /api/user/free-author-dashboard/ | [Free author dashboard](#free-author-dashboard) | Yes |
 | | | | |
 | POST | /api/admin/users/author-upgrade/ | [Upgrade user to author](#upgrade-to-author) | Yes |
 | POST | /api/admin/users/admin-upgrade/ | [Upgrade user to admin](#upgrade-to-admin) | Yes |
@@ -50,6 +55,7 @@ Handles all authentication, user profiles, and admin user management.
 | POST | /api/admin/users/deactivate-author/ | [Deactivate author profile](#deactivate-author) | Yes |
 | POST | /api/admin/users/reactivate-author/ | [Reactivate author profile](#reactivate-author) | Yes |
 | PATCH | /api/admin/users/free-author/update/ | [Admin update free author](#admin-update-free-author) | Yes |
+| POST | /api/admin/users/resend-verification/ | [Admin resend verification email](#admin-resend-verification) | Yes |
 
 ---
 
@@ -163,6 +169,8 @@ Content-Type    application/json
     "confirm_password": ["Passwords do not match"]
 }
 ```
+#### Notes:
+- Triggers `new_user_registered` notification to admins on successful registration
 
 ---
 
@@ -749,6 +757,7 @@ None
   - Reader: "As a free author your books will always be free to read. Are you sure?"
   - Paid author: "You already have a paid author profile. Adding a free author profile means two separate author identities. Are you sure?"
 - Free author books are always free to read — no currency unlock required
+- Triggers `free_author_upgrade` notification to admins on successful upgrade
 
 ---
 
@@ -845,6 +854,7 @@ Content-Type     application/json
 - Only one active request allowed at a time — pending or in_progress
 - `bio`, `genre_interest` and `writing_sample_link` are all optional
 - `writing_sample_link` should be a URL to external writing samples
+- Triggers `new_author_request` notification to admins on successful submission
 
 ---
 
@@ -882,6 +892,259 @@ None
 - `admin_notes` and `contact_attempted` are not returned — admin only
 - Status values: pending, in_progress, approved, not_at_this_time, cleared
 - `not_at_this_time` and `cleared` statuses mean the request is closed and a new one can be submitted
+
+---
+
+### Get my author requests
+#### Headers:
+```
+Authorization    Bearer <access_token>
+```
+#### Body:
+```
+None
+```
+#### Success response 200:
+```json
+{
+    "count": 1,
+    "requests": [
+        {
+            "id": 1,
+            "request_type": "new_author",
+            "status": "pending",
+            "bio": "I am a passionate writer",
+            "genre_interest": "Romance/Romantasy",
+            "writing_sample_link": "https://example.com/mywriting",
+            "reader_notes": null,
+            "created_at": "2026-04-22T14:00:55.174230-04:00",
+            "updated_at": "2026-04-22T14:00:55.174257-04:00"
+        }
+    ]
+}
+```
+#### Notes:
+- Returns all requests for the logged in user ordered by most recent first
+- `reader_notes` is populated by admin — visible to the user
+- `admin_notes` and `contact_attempted` are not returned — admin only
+- Status values: pending, in_progress, approved, not_at_this_time, cleared
+- `not_at_this_time` and `cleared` statuses mean the request is closed and a new one can be submitted
+
+---
+
+### Follow author
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "author_type": "paid",
+    "author_id": 1
+}
+```
+#### Success response 201:
+```json
+{
+    "message": "Author followed successfully",
+    "follow": {
+        "id": 1,
+        "author_type": "paid",
+        "author_profile": {
+            "author_username": null,
+            "pen_name": "Lily Bee",
+            "display_name": "Lily Bee",
+            "avatar_url": "/media/avatars/author/default.png",
+            "tier": 2,
+            "is_publicly_visible": true
+        },
+        "free_author_profile": null,
+        "followed_at": "2026-05-08T12:00:00Z"
+    }
+}
+```
+#### Error responses:
+```json
+400: {"error": "author_type and author_id are required"}
+400: {"error": "author_type must be paid or free"}
+400: {"error": "You are already following this author"}
+404: {"error": "Author not found"}
+```
+#### Notes:
+- `author_type` must be `paid` or `free`
+- `author_id` is the AuthorProfile or FreeAuthorProfile id — not the user id
+- Author must be active to be followed
+- Following is private — not shown on public author profiles
+- `following_count` on `/me/` increments on success
+
+---
+
+### Unfollow author
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "author_type": "paid",
+    "author_id": 1
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "Author unfollowed successfully"
+}
+```
+#### Error responses:
+```json
+400: {"error": "author_type and author_id are required"}
+400: {"error": "author_type must be paid or free"}
+404: {"error": "You are not following this author"}
+```
+#### Notes:
+- `author_type` must be `paid` or `free`
+- `author_id` is the AuthorProfile or FreeAuthorProfile id — not the user id
+- `following_count` on `/me/` decrements on success
+
+---
+
+### My following
+#### Headers:
+```
+Authorization    Bearer <access_token>
+```
+#### Body:
+```
+None
+```
+#### Success response 200:
+```json
+{
+    "count": 2,
+    "following": [
+        {
+            "id": 1,
+            "author_type": "paid",
+            "author_profile": {
+                "author_username": null,
+                "pen_name": "Lily Bee",
+                "display_name": "Lily Bee",
+                "avatar_url": "/media/avatars/author/default.png",
+                "tier": 2,
+                "is_publicly_visible": true
+            },
+            "free_author_profile": null,
+            "followed_at": "2026-05-08T12:00:00Z"
+        },
+        {
+            "id": 2,
+            "author_type": "free",
+            "author_profile": null,
+            "free_author_profile": {
+                "author_username": "TestFreeAuthor",
+                "pen_name": "Free Pen Name",
+                "display_name": "Free Pen Name",
+                "avatar_url": "/media/avatars/free_author/default.png",
+                "is_publicly_visible": true
+            },
+            "followed_at": "2026-05-08T13:00:00Z"
+        }
+    ]
+}
+```
+#### Notes:
+- Returns all authors the logged in user is following ordered by most recently followed
+- Private endpoint — auth required
+- Use this to populate the "Following" section of the reader dashboard
+
+---
+
+### Author dashboard
+#### Headers:
+```
+Authorization    Bearer <access_token>
+```
+#### Body:
+```
+None
+```
+#### Success response 200:
+```json
+{
+    "author_profile": {
+        "author_username": null,
+        "pen_name": "Lily Bee",
+        "first_name": "Melissa",
+        "last_name": "Payne",
+        "show_real_name": false,
+        "is_publicly_visible": true,
+        "is_active": true,
+        "is_featured": false,
+        "bio": null,
+        "tier": 2,
+        "contract_link": "https://drive.google.com/drive/folders/example",
+        "avatar_url": "/media/avatars/author/default.png",
+        "created_at": "2026-04-10T12:34:12.171145-04:00",
+        "follower_count": 5
+    }
+}
+```
+#### Error response 403:
+```json
+{
+    "error": "Author profile not found"
+}
+```
+#### Notes:
+- Only users with a paid author profile can access this endpoint
+- `follower_count` is private — only visible to the author themselves
+- TODO: will include book stats and analytics when booksApp is built
+
+---
+
+### Free author dashboard
+#### Headers:
+```
+Authorization    Bearer <access_token>
+```
+#### Body:
+```
+None
+```
+#### Success response 200:
+```json
+{
+    "free_author_profile": {
+        "author_username": "TestFreeAuthor",
+        "pen_name": "Free Pen Name",
+        "first_name": null,
+        "last_name": null,
+        "show_real_name": false,
+        "is_publicly_visible": true,
+        "is_active": true,
+        "is_featured": false,
+        "bio": "This is my free author bio",
+        "avatar_url": "/media/avatars/free_author/default.png",
+        "created_at": "2026-04-21T12:00:00Z",
+        "follower_count": 3
+    }
+}
+```
+#### Error response 403:
+```json
+{
+    "error": "Free author profile not found"
+}
+```
+#### Notes:
+- Only users with a free author profile can access this endpoint
+- `follower_count` is private — only visible to the author themselves
+- TODO: will include book stats and analytics when booksApp is built
 
 ---
 
@@ -1300,6 +1563,7 @@ Content-Type     application/json
 - `reader_notes` are visible to the user — use for communication about their request
 - `admin_notes` are internal only — never shown to the user
 - `contact_attempted` should be set to true once admin has reached out to the user
+- Triggers `author_request_status_change` notification to user when status changes
 
 ---
 
@@ -1390,6 +1654,7 @@ Authorization     Bearer <access_token>
 - Reader account remains active — user can still log in as a reader
 - Confirmation email sent to author automatically
 - TODO: will also hide all author books when booksApp is built
+- Triggers `author_deactivated` notification to user and admins
 
 ---
 
@@ -1426,6 +1691,7 @@ Authorization     Bearer <access_token>
 - Books remain hidden — admin manually unhides per book as agreed in contract
 - Confirmation email sent to author automatically
 - TODO: book visibility handling will be added when booksApp is built
+- Triggers `author_reactivated` notification to user and admins
 
 ---
 
@@ -1477,6 +1743,39 @@ Authorization     Bearer <access_token>
 - is_featured used for featuring authors on the platform — payment handled offline
 - is_active=False hides the free author from public listing
 - TODO: is_active=False will also hide their books when booksApp is built
+
+---
+
+### Admin resend verification
+#### Headers:
+```
+Content-Type      application/json
+Authorization     Bearer <access_token>
+```
+#### Body:
+```json
+{
+    "user_id": 2
+}
+```
+#### Success response 200:
+```json
+{
+    "message": "Verification email sent to user@example.com"
+}
+```
+#### Error responses:
+```json
+403: {"error": "You do not have permission to perform this action"}
+400: {"error": "user_id is required"}
+400: {"error": "User email is already verified"}
+404: {"error": "User not found"}
+```
+#### Notes:
+- Admin access required
+- Invalidates any existing unused verification tokens before sending new one
+- New token expires after 24 hours
+- Use when a user reports not receiving their verification email or token has expired
 
 ---
 
