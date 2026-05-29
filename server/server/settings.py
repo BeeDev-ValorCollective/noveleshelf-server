@@ -84,7 +84,7 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=8),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
@@ -92,8 +92,8 @@ SIMPLE_JWT = {
 CRONJOBS = [
     ('0 0 * * *', 'cron.user_cron.deactivate_unverified_users'), # runs 00:00 UTC Daily
     ('0 3 * * 0', 'cron.user_cron.flush_expired_tokens'), # runs 03:00 UTC Sundays
-    # ('0 1 * * *', 'cron.books_cron.mark_books_not_new'),
-    # ('0 1 * * *', 'cron.books_cron.mark_chapters_not_new'),
+    ('0 1 * * *', 'cron.books_cron.mark_books_not_new'),
+    ('0 1 * * *', 'cron.books_cron.mark_chapters_not_new'),
 ]
 
 ROOT_URLCONF = 'server.urls'
@@ -176,8 +176,9 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = env('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD')
-DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default=env('EMAIL_HOST_USER'))
+DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default=env('BACKUP_FROM_EMAIL'))
 FRONTEND_URL = env('FRONTEND_URL', default='http://localhost:5173')
+BCC_EMAIL = env('BCC_EMAIL', default=env('BACKUP_FROM_EMAIL'))
 
 LOGGING = {
     'version': 1,
@@ -201,6 +202,12 @@ LOGGING = {
             'filename': os.path.join(BASE_DIR, 'logs/email.log'),
             'formatter': 'verbose',
         },
+        'django_file': {
+            'level': 'ERROR',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs/django.log'),
+            'formatter': 'verbose',
+        },
     },
     'loggers': {
         'cron': {
@@ -211,6 +218,11 @@ LOGGING = {
         'utils.email_utils': {
             'handlers': ['email_file'],
             'level': 'INFO',
+            'propagate': False,
+        },
+        'django': {
+            'handlers': ['django_file'],
+            'level': 'ERROR',
             'propagate': False,
         },
     },

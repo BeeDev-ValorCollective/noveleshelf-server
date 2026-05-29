@@ -399,7 +399,7 @@ def update_free_author_profile(request):
     is_publicly_visible = request.data.get('is_publicly_visible')
 
     if is_publicly_visible is not None:
-        free_author_profile.is_publicly_visible = is_publicly_visible
+        free_author_profile.is_publicly_visible = parse_bool(is_publicly_visible)
 
     if author_username:
         if FreeAuthorProfile.objects.filter(author_username=author_username).exclude(user=request.user).exists():
@@ -422,7 +422,7 @@ def update_free_author_profile(request):
         free_author_profile.bio = bio
 
     if show_real_name is not None:
-        free_author_profile.show_real_name = show_real_name
+        free_author_profile.show_real_name = parse_bool(show_real_name)
 
     if avatar:
         free_author_profile.avatar_url = avatar
@@ -488,6 +488,11 @@ def submit_author_request(request):
     bio = request.data.get('bio')
     genre_interest = request.data.get('genre_interest')
     writing_sample_link = request.data.get('writing_sample_link')
+
+    if request_type == 'new_author':
+        request.user.paid_author_agreed_to_terms = True
+        request.user.paid_author_agreed_at = timezone.now()
+        request.user.save()
 
     author_request = AuthorRequest.objects.create(
         user=request.user,
