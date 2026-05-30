@@ -4,38 +4,75 @@ const MailModel = require('../models/mail.model')
 const Site_Link = process.env.SITE_LINK
 const Unsub_Link = process.env.UNSUB_LINK
 
-const NOVELESHELF_CONTACT_TYPES = [
-    'account',
-    'book_reading',
-    'author_support',
-]
-
 const getRouting = (contactType) => {
-    if (NOVELESHELF_CONTACT_TYPES.includes(contactType)) {
+    if (contactType === 'account') {
         return {
             to: process.env.NOVELESHELF_EMAIL_USER,
-            from: process.env.NOVELESHELF_EMAIL_USER,
+            from: `Novel eShelf <${process.env.NOVELESHELF_EMAIL_USER}>`,
             emailUser: process.env.NOVELESHELF_EMAIL_USER,
             emailPass: process.env.NOVELESHELF_EMAIL_PASS,
             cc: null,
+            subject: 'Account Issue — Novel eShelf',
+        }
+    }
+    if (contactType === 'book_reading') {
+        return {
+            to: process.env.NOVELESHELF_EMAIL_USER,
+            from: `Novel eShelf <${process.env.NOVELESHELF_EMAIL_USER}>`,
+            emailUser: process.env.NOVELESHELF_EMAIL_USER,
+            emailPass: process.env.NOVELESHELF_EMAIL_PASS,
+            cc: null,
+            subject: 'Book & Reading Issue — Novel eShelf',
+        }
+    }
+    if (contactType === 'author_support') {
+        return {
+            to: process.env.NOVELESHELF_EMAIL_USER,
+            from: `Novel eShelf <${process.env.NOVELESHELF_EMAIL_USER}>`,
+            emailUser: process.env.NOVELESHELF_EMAIL_USER,
+            emailPass: process.env.NOVELESHELF_EMAIL_PASS,
+            cc: null,
+            subject: 'Author Support — Novel eShelf',
         }
     }
     if (contactType === 'other') {
         return {
             to: process.env.NOVELESHELF_EMAIL_USER,
-            from: process.env.NOVELESHELF_EMAIL_USER,
+            from: `Novel eShelf <${process.env.NOVELESHELF_EMAIL_USER}>`,
             emailUser: process.env.NOVELESHELF_EMAIL_USER,
             emailPass: process.env.NOVELESHELF_EMAIL_PASS,
             cc: process.env.BEEDEV_EMAIL_USER,
+            subject: 'General Inquiry — Novel eShelf',
         }
     }
-    // technical, partnership, business → BeeDev
+    if (contactType === 'technical') {
+        return {
+            to: process.env.BEEDEV_EMAIL_USER,
+            from: `BeeDev Services <${process.env.BEEDEV_EMAIL_USER}>`,
+            emailUser: process.env.BEEDEV_EMAIL_USER,
+            emailPass: process.env.BEEDEV_EMAIL_PASS,
+            cc: null,
+            subject: 'Technical Issue — Novel eShelf',
+        }
+    }
+    if (contactType === 'partnership' || contactType === 'business') {
+        return {
+            to: process.env.BEEDEV_EMAIL_USER,
+            from: `BeeDev Services <${process.env.BEEDEV_EMAIL_USER}>`,
+            emailUser: process.env.BEEDEV_EMAIL_USER,
+            emailPass: process.env.BEEDEV_EMAIL_PASS,
+            cc: null,
+            subject: 'Business Inquiry — Novel eShelf',
+        }
+    }
+    // fallback
     return {
         to: process.env.BEEDEV_EMAIL_USER,
-        from: process.env.BEEDEV_EMAIL_USER,
+        from: `BeeDev Services <${process.env.BEEDEV_EMAIL_USER}>`,
         emailUser: process.env.BEEDEV_EMAIL_USER,
         emailPass: process.env.BEEDEV_EMAIL_PASS,
         cc: null,
+        subject: 'General Inquiry — Novel eShelf',
     }
 }
 
@@ -71,7 +108,7 @@ const sendContactMail = async (req, res) => {
             to: routing.to,
             cc: routing.cc || undefined,
             bcc: bccList.length ? bccList : undefined,
-            subject: `Novel eShelf Contact — ${mailData.subject}`,
+            subject: routing.subject,
             html: `
                 <body style="background-color: #0d0f1a; margin: 0; padding: 0; color: #ffffff;">
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse; max-width: 1000px; margin: auto;">
