@@ -1,0 +1,26 @@
+{
+  "name": "noveleshelf-mailer",
+  "version": "1.0.0",
+  "description": "Node Mailer for Novel eShelf",
+  "homepage": "https://github.com/BeeDev-ValorCollective/noveleshelf-server#readme",
+  "bugs": {
+    "url": "https://github.com/BeeDev-ValorCollective/noveleshelf-server/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BeeDev-ValorCollective/noveleshelf-server.git"
+  },
+  "license": "ISC",
+  "author": "BeeDev Services",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "nodemailer": "^8.0.10"
+  }
+}
