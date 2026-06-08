@@ -71,6 +71,10 @@ class ModeratorProfileSerializer(serializers.ModelSerializer):
         model = ModeratorProfile
         fields = ['mod_username', 'avatar_url', 'assigned_by', 'created_at']
 
+class AuthorRequestUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'email', 'username']
 
 class AuthorRequestSerializer(serializers.ModelSerializer):
     class Meta:
@@ -79,6 +83,8 @@ class AuthorRequestSerializer(serializers.ModelSerializer):
 
 
 class AuthorRequestAdminSerializer(serializers.ModelSerializer):
+    user = AuthorRequestUserSerializer(read_only=True)
+
     class Meta:
         model = AuthorRequest
         fields = ['id', 'user', 'request_type', 'status', 'bio', 'genre_interest', 'writing_sample_link', 'admin_notes', 'reader_notes', 'contact_attempted', 'created_at', 'updated_at']
