@@ -5,6 +5,8 @@ from .models import (
     Chapter, BookReview, ChapterComment,
     UserBook, UserReadingProgress
 )
+from django.contrib.auth import get_user_model
+User = get_user_model()
 
 
 class GenreSerializer(serializers.ModelSerializer):
@@ -128,6 +130,15 @@ class BookSerializer(serializers.ModelSerializer):
     def get_published_chapter_count(self, obj):
         return obj.chapters.filter(status='published').count()
 
+class BookAuthorAdminSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    email = serializers.EmailField()
+    pen_name = serializers.CharField()
+    author_username = serializers.CharField()
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+    show_real_name = serializers.BooleanField()
+    author_type = serializers.CharField()
 
 class BookAdminSerializer(serializers.ModelSerializer):
     genres = serializers.SerializerMethodField()
@@ -138,6 +149,7 @@ class BookAdminSerializer(serializers.ModelSerializer):
     chapters = ChapterSerializer(many=True, read_only=True)
     chapter_count = serializers.SerializerMethodField()
     published_chapter_count = serializers.SerializerMethodField()
+    author = serializers.SerializerMethodField()
 
     class Meta:
         model = Book
@@ -145,10 +157,28 @@ class BookAdminSerializer(serializers.ModelSerializer):
             'id', 'title', 'description', 'cover_image', 'content_rating',
             'book_tier', 'status', 'is_visible', 'is_featured', 'is_new',
             'is_complete', 'free_chapters', 'has_pending_changes', 'submitted_at',
-            'admin_notes', 'reader_notes', 'genres', 'relationship_tags',
+            'admin_notes', 'reader_notes', 'author', 'genres', 'relationship_tags',
             'keywords', 'pages', 'chapters', 'chapter_count',
             'published_chapter_count', 'created_at', 'updated_at'
         ]
+
+    def get_author(self, obj):
+        profile = obj.author_profile or obj.free_author_profile
+        if not profile:
+            return {'id': None, 'email': '—', 'pen_name': None, 'author_username': None, 'first_name': None, 'last_name': None, 'show_real_name': False, 'author_type': 'unknown'}
+        
+        user = profile.user
+        return {
+            'id': user.id,
+            'email': user.email,
+            'pen_name': profile.pen_name,
+            'author_username': profile.author_username,
+            'first_name': profile.first_name,
+            'last_name': profile.last_name,
+            'show_real_name': profile.show_real_name,
+            'author_type': 'paid' if obj.author_profile else 'free',
+        }
+
 
     def get_genres(self, obj):
         return GenreSerializer(
