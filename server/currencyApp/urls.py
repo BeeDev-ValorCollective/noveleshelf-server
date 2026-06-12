@@ -1,5 +1,6 @@
 from django.urls import path
+from currencyApp.views.admin_views import AdminAddCurrencyView
 
 urlpatterns = [
-    # future endpoints will go here
+    path('admin/add/', AdminAddCurrencyView.as_view(), name='admin-add-currency'),
 ]

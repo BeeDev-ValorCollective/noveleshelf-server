@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import (
+from booksApp.models import (
     Genre, ContentRating, RelationshipTag, Keyword,
     Book, BookPage, BookGenre, BookRelationshipTag, BookKeyword,
     Chapter, BookReview, ChapterComment,
