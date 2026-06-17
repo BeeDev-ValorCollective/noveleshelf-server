@@ -27,4 +27,6 @@ urlpatterns = [
     path('api/books/reader/', include('booksApp.urls.reader_urls')),
     # currencyApp urls
     path('api/currency/', include('currencyApp.urls')),
+    # statsApp urls
+    path('api/stats/admin/', include('statsApp.urls.admin_urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

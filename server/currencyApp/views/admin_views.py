@@ -65,3 +65,48 @@ class AdminAddCurrencyView(APIView):
                 'black_ink_balance': wallet.black_ink_balance,
             }
         }, status=status.HTTP_200_OK)
+
+class AdminGiftCurrencyView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if not hasattr(request.user, 'admin_profile'):
+            return Response({'detail': 'Admin access required.'}, status=status.HTTP_403_FORBIDDEN)
+
+        user_id = request.data.get('user_id')
+        amount = request.data.get('amount')
+        notes = request.data.get('notes', 'Admin gift')
+
+        if not all([user_id, amount]):
+            return Response({'detail': 'user_id and amount are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            amount = int(amount)
+            if amount <= 0:
+                raise ValueError
+        except (ValueError, TypeError):
+            return Response({'detail': 'amount must be a positive integer.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        target_user = get_object_or_404(User, id=user_id)
+        wallet, _ = UserWallet.objects.get_or_create(user=target_user)
+
+        wallet.black_ink_balance += amount
+        wallet.save()
+
+        Transaction.objects.create(
+            user=target_user,
+            transaction_type='admin_gift',
+            currency_type='black_ink',
+            amount=amount,
+            balance_after=wallet.black_ink_balance,
+            notes=f'{notes} (gifted by {request.user.email})'
+        )
+
+        return Response({
+            'detail': f'Gifted {amount} black ink drops to {target_user.email}.',
+            'wallet': {
+                'quill_balance': wallet.quill_balance,
+                'gold_ink_balance': wallet.gold_ink_balance,
+                'black_ink_balance': wallet.black_ink_balance,
+            }
+        }, status=status.HTTP_200_OK)

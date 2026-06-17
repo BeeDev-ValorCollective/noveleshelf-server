@@ -24,6 +24,7 @@ class Transaction(models.Model):
         ('chapter_unlock', 'Chapter Unlock'),
         ('author_payout', 'Author Payout'),
         ('admin_adjustment', 'Admin Adjustment'),
+        ('admin_gift', 'Admin Gift'),
     ]
 
     CURRENCY_TYPES = [

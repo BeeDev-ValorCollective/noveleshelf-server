@@ -31,6 +31,7 @@ Chapter unlock spend order is always **black_ink → gold_ink → quills** (see 
 | Method | Endpoint | Description | Auth Required |
 |--------|----------|-------------|---------------|
 | POST | /api/currency/admin/add/ | [Manually add currency to a user](#manually-add-currency-to-a-user) | Yes (super admin) |
+| POST | /api/currency/admin/gift/ | [Gift black ink drops to a user](#gift-black-ink-drops-to-a-user) | Yes (admin) |
 
 There is no endpoint to trigger the daily login reward directly — it fires automatically as a side effect of the `/me/` request in `userApp`, not through a `currencyApp` URL.
 
@@ -81,6 +82,47 @@ Content-Type     application/json
 
 ---
 
+### Gift black ink drops to a user
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "user_id": 1,
+    "amount": 10,
+    "notes": "Welcome gift for beta tester"
+}
+```
+#### Success response 200:
+```json
+{
+    "detail": "Gifted 10 black ink drops to melissa@beedev-services.com.",
+    "wallet": {
+        "quill_balance": 50,
+        "gold_ink_balance": 0,
+        "black_ink_balance": 18
+    }
+}
+```
+#### Error responses:
+```json
+403: {"detail": "admin access required."}
+400: {"detail": "user_id and amount are required."}
+400: {"detail": "amount must be a positive integer."}
+404: User not found
+```
+#### Notes:
+- Open to any admin account, not just super admin (checked via `hasattr(request.user, 'admin_profile')`) — distinct from `admin/add/`, which remains super-admin-only
+- Always credits `black_ink_balance` — there is no `currency_type` field in the request body, since gifts are black ink only by design
+- `notes` is optional — defaults to `"Admin gift"`, and the requesting admin's email is always appended automatically
+- Writes a `Transaction` with `transaction_type: admin_gift`, kept distinct from `admin_adjustment` so gift activity can be reported on separately from manual corrections
+- Creates the user's `UserWallet` if it doesn't exist yet (`get_or_create`)
+
+---
+
 ## How the Daily Login Reward Works
 
 There's no dedicated endpoint for this — it's triggered as a side effect inside the `userApp` `/me/` view on every call, via `process_daily_login_reward(user)` in `currencyApp/views/reward_views.py`.
@@ -118,6 +160,7 @@ The audit log. Every wallet change — earned or spent — gets a row here.
 | `ad_reward` | Gold ink earned by watching an ad | 🚧 Not built |
 | `quill_purchase` | Quills purchased via Stripe | 🚧 Not built |
 | `author_payout` | Author's earnings payout | 🚧 Not built — payout logic not designed yet |
+| `admin_gift` | Admin-gifted black ink drops | ✅ Live |
 
 **`currency_type` choices:** `black_ink`, `gold_ink`, `quills`
 
