@@ -79,7 +79,7 @@ class MyFollowingView(APIView):
             )
 
         if not created:
-            return Response({'detail': 'Already following this author.'}, status=status.HTTP_200_OK)
+            return Response(_build_author_entry(follow), status=status.HTTP_200_OK)
 
         return Response(_build_author_entry(follow), status=status.HTTP_201_CREATED)
 
@@ -91,4 +91,4 @@ class UnfollowView(APIView):
         """Unfollow by the UserFollowAuthor record id."""
         follow = get_object_or_404(UserFollowAuthor, id=follow_id, user=request.user)
         follow.delete()
-        return Response({'detail': 'Unfollowed.'}, status=status.HTTP_204_NO_CONTENT)
+        return Response(status=status.HTTP_204_NO_CONTENT)

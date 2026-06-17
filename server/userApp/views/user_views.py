@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 from django.contrib.auth import get_user_model
-from ..serializers import UserProfileSerializer, AdminProfileSerializer, AuthorProfileSerializer, ModeratorProfileSerializer, FreeAuthorProfileSerializer, AuthorRequestSerializer, UserFollowAuthorSerializer, FreeAuthorProfileDashboardSerializer, AuthorProfileDashboardSerializer
+from ..serializers import UserProfileSerializer, AdminProfileSerializer, AuthorProfileSerializer, ModeratorProfileSerializer, FreeAuthorProfileSerializer, AuthorRequestSerializer, FreeAuthorProfileDashboardSerializer, AuthorProfileDashboardSerializer
 from ..models import UserProfile, AdminProfile, AuthorProfile, ModeratorProfile, FreeAuthorProfile, AuthorRequest, UserFollowAuthor
 from utils.email_utils import send_verification_email, send_notification
 from django.utils import timezone
@@ -524,132 +524,6 @@ def get_my_author_requests(request):
         'requests': AuthorRequestSerializer(requests, many=True).data
     })
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def follow_author(request):
-    author_type = request.data.get('author_type')
-    author_id = request.data.get('author_id')
-
-    if not author_type or not author_id:
-        return Response(
-            {'error': 'author_type and author_id are required'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    if author_type not in ['paid', 'free']:
-        return Response(
-            {'error': 'author_type must be paid or free'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    if author_type == 'paid':
-        try:
-            author_profile = AuthorProfile.objects.get(id=author_id, is_active=True)
-        except AuthorProfile.DoesNotExist:
-            return Response(
-                {'error': 'Author not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        if UserFollowAuthor.objects.filter(user=request.user, author_profile=author_profile).exists():
-            return Response(
-                {'error': 'You are already following this author'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        follow = UserFollowAuthor.objects.create(
-            user=request.user,
-            author_profile=author_profile
-        )
-
-    else:
-        try:
-            free_author_profile = FreeAuthorProfile.objects.get(id=author_id, is_active=True)
-        except FreeAuthorProfile.DoesNotExist:
-            return Response(
-                {'error': 'Author not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        if UserFollowAuthor.objects.filter(user=request.user, free_author_profile=free_author_profile).exists():
-            return Response(
-                {'error': 'You are already following this author'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        follow = UserFollowAuthor.objects.create(
-            user=request.user,
-            free_author_profile=free_author_profile
-        )
-
-    return Response({
-        'message': 'Author followed successfully',
-        'follow': UserFollowAuthorSerializer(follow).data
-    }, status=status.HTTP_201_CREATED)
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def unfollow_author(request):
-    author_type = request.data.get('author_type')
-    author_id = request.data.get('author_id')
-
-    if not author_type or not author_id:
-        return Response(
-            {'error': 'author_type and author_id are required'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    if author_type not in ['paid', 'free']:
-        return Response(
-            {'error': 'author_type must be paid or free'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    if author_type == 'paid':
-        try:
-            follow = UserFollowAuthor.objects.get(
-                user=request.user,
-                author_profile_id=author_id
-            )
-        except UserFollowAuthor.DoesNotExist:
-            return Response(
-                {'error': 'You are not following this author'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-    else:
-        try:
-            follow = UserFollowAuthor.objects.get(
-                user=request.user,
-                free_author_profile_id=author_id
-            )
-        except UserFollowAuthor.DoesNotExist:
-            return Response(
-                {'error': 'You are not following this author'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-    follow.delete()
-
-    return Response({
-        'message': 'Author unfollowed successfully'
-    })
-
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def my_following(request):
-    following = UserFollowAuthor.objects.filter(
-        user=request.user
-    ).select_related(
-        'author_profile',
-        'free_author_profile'
-    ).order_by('-followed_at')
-
-    return Response({
-        'count': following.count(),
-        'following': UserFollowAuthorSerializer(following, many=True).data
-    })
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
