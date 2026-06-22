@@ -182,23 +182,23 @@ def book_list(request):
             Q(author_profile__last_name__icontains=search) |
             Q(free_author_profile__pen_name__icontains=search) |
             Q(free_author_profile__author_username__icontains=search) |
-            Q(book_genres__genre__name__icontains=search) |
-            Q(book_keywords__keyword__name__icontains=search) |
-            Q(book_relationship_tags__tag__name__icontains=search)
+            Q(genres__genre__name__icontains=search) |
+            Q(keywords__keyword__name__icontains=search) |
+            Q(relationship_tags__tag__name__icontains=search)
         ).distinct()
 
     # filters
     genre = request.query_params.get('genre')
     if genre:
-        books = books.filter(book_genres__genre__id=genre)
+        books = books.filter(genres__genre__id=genre)
 
     relationship_tag = request.query_params.get('relationship_tag')
     if relationship_tag:
-        books = books.filter(book_relationship_tags__tag__id=relationship_tag)
+        books = books.filter(relationship_tags__tag__id=relationship_tag)
 
     keyword = request.query_params.get('keyword')
     if keyword:
-        books = books.filter(book_keywords__keyword__id=keyword)
+        books = books.filter(keywords__keyword__id=keyword)
 
     content_rating = request.query_params.get('content_rating')
     if content_rating:
