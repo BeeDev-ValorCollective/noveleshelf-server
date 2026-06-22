@@ -1,15 +1,16 @@
 from django.urls import path
 from booksApp.views.reader_views import (
-    MyLibraryView, MyLibraryBookView,
-    ChapterReadView, ChapterUnlockView,
+    my_library, my_library_remove_book, my_library_book_detail,
+    chapter_read, chapter_unlock,
 )
 
 urlpatterns = [
     # Reader - Library
-    path('library/', MyLibraryView.as_view(), name='my-library'),
-    path('library/<int:book_id>/', MyLibraryBookView.as_view(), name='my-library-book'),
+    path('library/', my_library, name='my-library'),
+    path('library/<int:book_id>/', my_library_remove_book, name='my-library-remove-book'),
+    path('library/book/<int:book_id>/', my_library_book_detail, name='my-library-book-detail'),
 
     # Reader - Chapters
-    path('chapters/<int:chapter_id>/read/', ChapterReadView.as_view(), name='chapter-read'),
-    path('chapters/<int:chapter_id>/unlock/', ChapterUnlockView.as_view(), name='chapter-unlock'),
+    path('chapters/<int:chapter_id>/read/', chapter_read, name='chapter-read'),
+    path('chapters/<int:chapter_id>/unlock/', chapter_unlock, name='chapter-unlock'),
 ]
