@@ -1,3 +1,4 @@
+# booksApp/serializers/reader_serializers.py
 from rest_framework import serializers
 from booksApp.models import UserBook, UserReadingProgress, Chapter, Book
 from userApp.models import AuthorProfile, FreeAuthorProfile
