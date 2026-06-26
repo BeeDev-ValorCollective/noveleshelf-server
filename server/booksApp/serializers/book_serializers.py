@@ -1,10 +1,11 @@
 from rest_framework import serializers
-from .models import (
+from booksApp.models import (
     Genre, ContentRating, RelationshipTag, Keyword,
     Book, BookPage, BookGenre, BookRelationshipTag, BookKeyword,
     Chapter, BookReview, ChapterComment,
     UserBook, UserReadingProgress
 )
+from currencyApp.serializers import FoundingAuthorBadgeSerializer
 from django.contrib.auth import get_user_model
 User = get_user_model()
 
@@ -94,6 +95,7 @@ class BookSerializer(serializers.ModelSerializer):
     chapters = ChapterSerializer(many=True, read_only=True)
     chapter_count = serializers.SerializerMethodField()
     published_chapter_count = serializers.SerializerMethodField()
+    is_founding_eligible = serializers.SerializerMethodField()
 
     class Meta:
         model = Book
@@ -103,7 +105,7 @@ class BookSerializer(serializers.ModelSerializer):
             'is_complete', 'free_chapters', 'has_pending_changes',
             'genres', 'relationship_tags', 'keywords', 'pages',
             'chapters', 'chapter_count', 'published_chapter_count',
-            'created_at', 'updated_at'
+            'is_founding_eligible', 'created_at', 'updated_at'
         ]
 
     def get_genres(self, obj):
@@ -130,6 +132,9 @@ class BookSerializer(serializers.ModelSerializer):
     def get_published_chapter_count(self, obj):
         return obj.chapters.filter(status='published').count()
 
+    def get_is_founding_eligible(self, obj):
+        return obj.founding_author_eligibility.exists()
+
 class BookAuthorAdminSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     email = serializers.EmailField()
@@ -150,6 +155,7 @@ class BookAdminSerializer(serializers.ModelSerializer):
     chapter_count = serializers.SerializerMethodField()
     published_chapter_count = serializers.SerializerMethodField()
     author = serializers.SerializerMethodField()
+    is_founding_eligible = serializers.SerializerMethodField()
 
     class Meta:
         model = Book
@@ -159,15 +165,18 @@ class BookAdminSerializer(serializers.ModelSerializer):
             'is_complete', 'free_chapters', 'has_pending_changes', 'submitted_at',
             'admin_notes', 'reader_notes', 'author', 'genres', 'relationship_tags',
             'keywords', 'pages', 'chapters', 'chapter_count',
-            'published_chapter_count', 'created_at', 'updated_at'
+            'published_chapter_count', 'is_founding_eligible', 'created_at', 'updated_at'
         ]
 
     def get_author(self, obj):
         profile = obj.author_profile or obj.free_author_profile
         if not profile:
-            return {'id': None, 'email': '—', 'pen_name': None, 'author_username': None, 'first_name': None, 'last_name': None, 'show_real_name': False, 'author_type': 'unknown'}
-        
+            return {'id': None, 'email': '—', 'pen_name': None, 'author_username': None, 'first_name': None, 'last_name': None, 'show_real_name': False, 'author_type': 'unknown', 'founding_author': None}
+
         user = profile.user
+        # Only paid AuthorProfile can hold a founding-author slot (free authors
+        # are explicitly out of scope per the founding-author program design).
+        founding_slot = getattr(profile, 'founding_author_slot', None) if obj.author_profile else None
         return {
             'id': user.id,
             'email': user.email,
@@ -177,6 +186,7 @@ class BookAdminSerializer(serializers.ModelSerializer):
             'last_name': profile.last_name,
             'show_real_name': profile.show_real_name,
             'author_type': 'paid' if obj.author_profile else 'free',
+            'founding_author': FoundingAuthorBadgeSerializer(founding_slot).data if founding_slot else None,
         }
 
 
@@ -203,6 +213,9 @@ class BookAdminSerializer(serializers.ModelSerializer):
 
     def get_published_chapter_count(self, obj):
         return obj.chapters.filter(status='published').count()
+
+    def get_is_founding_eligible(self, obj):
+        return obj.founding_author_eligibility.exists()
 
 
 class UserBookSerializer(serializers.ModelSerializer):

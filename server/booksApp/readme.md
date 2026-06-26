@@ -4,7 +4,7 @@ Handles all book, chapter, genre, and reading progress functionality.
 
 ---
 
-[← Back to Server README](../README.md)
+[← Back to Server README](../readme.md)
 
 ---
 
@@ -26,17 +26,13 @@ Handles all book, chapter, genre, and reading progress functionality.
 | GET | /api/books/admin/keywords/ | [List all keywords](#list-keywords) | Yes |
 | POST | /api/books/admin/keywords/create/ | [Create keyword](#create-keyword) | Yes |
 | PATCH | /api/books/admin/keywords/update/ | [Update keyword](#update-keyword) | Yes |
-|||||
 | GET | /api/books/admin/books/ | [List all books](#list-all-books-admin) | Yes |
 | PATCH | /api/books/admin/books/update/ | [Update book](#admin-update-book) | Yes |
 | POST | /api/books/admin/books/approve/ | [Approve book](#approve-book) | Yes |
 | POST | /api/books/admin/books/request-changes/ | [Request book changes](#request-book-changes) | Yes |
 | POST | /api/books/admin/books/reject/ | [Reject book](#reject-book) | Yes |
-|||||
-| GET | /api/books/admin/flagged/reviews/ | List flagged reviews | Yes |
-| GET | /api/books/admin/flagged/comments/ | List flagged comments | Yes |
-| DELETE | /api/books/admin/reviews/delete/ | Delete review | Yes |
-| DELETE | /api/books/admin/comments/delete/ | Delete comment | Yes |
+
+> **Not yet built:** flagged review/comment moderation endpoints (`flagged/reviews/`, `flagged/comments/`, review/comment delete). Reviews and comments are not implemented anywhere in the app yet — see Parking Lot below.
 
 ### Author endpoints (`/api/books/author/`)
 
@@ -44,6 +40,7 @@ Handles all book, chapter, genre, and reading progress functionality.
 |--------|----------|-------------|---------------|
 | POST | /api/books/author/books/create/ | [Create book](#create-book) | Yes |
 | GET | /api/books/author/books/ | [List my books](#list-my-books) | Yes |
+| GET | /api/books/author/books/<id>/ | [Get book detail (manage view)](#get-book-detail-manage-view) | Yes |
 | PATCH | /api/books/author/books/update/ | [Update book](#update-book) | Yes |
 | POST | /api/books/author/books/submit/ | [Submit book for approval](#submit-book-for-approval) | Yes |
 | DELETE | /api/books/author/books/delete/ | [Delete book](#delete-book) | Yes |
@@ -53,38 +50,30 @@ Handles all book, chapter, genre, and reading progress functionality.
 | DELETE | /api/books/author/books/relationship-tags/remove/ | [Remove relationship tag from book](#remove-relationship-tag-from-book) | Yes |
 | POST | /api/books/author/books/keywords/add/ | [Add keyword to book](#add-keyword-to-book) | Yes |
 | DELETE | /api/books/author/books/keywords/remove/ | [Remove keyword from book](#remove-keyword-from-book) | Yes |
-|||||
 | POST | /api/books/author/chapters/create/ | [Create chapter](#create-chapter) | Yes |
 | GET | /api/books/author/chapters/ | [List my chapters](#list-my-chapters) | Yes |
 | PATCH | /api/books/author/chapters/update/ | [Update chapter](#update-chapter) | Yes |
 | POST | /api/books/author/chapters/publish/ | [Publish chapter](#publish-chapter) | Yes |
 | POST | /api/books/author/chapters/unpublish/ | [Unpublish chapter](#unpublish-chapter) | Yes |
 | DELETE | /api/books/author/chapters/delete/ | [Delete chapter](#delete-chapter) | Yes |
-|||||
 | POST | /api/books/author/pages/create-update/ | [Create or update book page](#create-or-update-book-page) | Yes |
 | POST | /api/books/author/pages/publish/ | [Publish book page](#publish-book-page) | Yes |
 | POST | /api/books/author/pages/unpublish/ | [Unpublish book page](#unpublish-book-page) | Yes |
 | DELETE | /api/books/author/pages/delete/ | [Delete book page](#delete-book-page) | Yes |
 
-### User endpoints (`/api/books/user/`)
+> **Not yet built:** author preview/bypass endpoints for reading own paid chapters without affecting reader stats — in progress.
+
+### Reader endpoints (`/api/books/reader/`)
 
 | Method | Endpoint | Description | Auth Required |
 |--------|----------|-------------|---------------|
-| GET | /api/books/user/books/ | List all visible books | Yes |
-| GET | /api/books/user/books/<id>/ | Get book details | Yes |
-| GET | /api/books/user/search/ | Search books | Yes |
-| GET | /api/books/user/chapters/<id>/ | Get chapter content | Yes |
-| POST | /api/books/user/chapters/unlock/ | Unlock chapter | Yes |
-| GET | /api/books/user/library/ | My library | Yes |
-| GET | /api/books/user/progress/<book_id>/ | Reading progress for book | Yes |
-|||||
-| POST | /api/books/user/reviews/create/ | Create review | Yes |
-| PATCH | /api/books/user/reviews/update/ | Update review | Yes |
-| GET | /api/books/user/reviews/<book_id>/ | List book reviews | Yes |
-| POST | /api/books/user/comments/create/ | Create comment | Yes |
-| GET | /api/books/user/comments/<chapter_id>/ | List chapter comments | Yes |
-| POST | /api/books/user/reviews/flag/ | Flag review | Yes |
-| POST | /api/books/user/comments/flag/ | Flag comment | Yes |
+| GET | /api/books/reader/library/ | [My library](#my-library) | Yes |
+| POST | /api/books/reader/library/ | [Add book to library](#add-book-to-library) | Yes |
+| DELETE | /api/books/reader/library/<book_id>/ | [Remove book from library](#remove-book-from-library) | Yes |
+| GET | /api/books/reader/chapters/<chapter_id>/read/ | [Read chapter](#read-chapter) | Yes |
+| POST | /api/books/reader/chapters/<chapter_id>/unlock/ | [Unlock chapter](#unlock-chapter) | Yes |
+
+> **Not yet built:** library detail view (single book within library context), reviews, comments, flagging. See Parking Lot below.
 
 ### Public endpoints (`/api/books/public/`)
 
@@ -93,6 +82,7 @@ Handles all book, chapter, genre, and reading progress functionality.
 | GET | /api/books/public/featured/ | [Featured books and authors](#featured-books-and-authors) | No |
 | GET | /api/books/public/books/ | [Browse all books](#browse-all-books) | No |
 | GET | /api/books/public/books/<id>/ | [Book detail](#book-detail) | No |
+| GET | /api/books/public/books/reference-data/ | Genres, keywords, relationship tags, content ratings for filter UIs | No |
 
 ---
 
@@ -661,6 +651,54 @@ author_type    paid or free (required if user has both profiles)
 
 ---
 
+### Get book detail (manage view)
+#### Headers:
+```
+Authorization    Bearer <access_token>
+```
+#### Body:
+```
+None
+```
+#### Success response 200:
+```json
+{
+    "id": 1,
+    "title": "My First Book",
+    "description": "A great story",
+    "cover_image": "/media/bookCovers/paid/default.png",
+    "content_rating": null,
+    "book_tier": null,
+    "status": "draft",
+    "is_visible": true,
+    "is_featured": false,
+    "is_new": true,
+    "is_complete": false,
+    "free_chapters": 3,
+    "has_pending_changes": false,
+    "genres": [],
+    "relationship_tags": [],
+    "keywords": [],
+    "pages": [],
+    "chapters": [],
+    "chapter_count": 0,
+    "published_chapter_count": 0,
+    "created_at": "2026-05-08T12:00:00Z",
+    "updated_at": "2026-05-08T12:00:00Z"
+}
+```
+#### Error responses:
+```json
+403: {"error": "You must be an author to perform this action"}
+404: {"error": "Book not found"}
+```
+#### Notes:
+- Same shape as a single item from [List my books](#list-my-books)
+- Ownership-checked — only the owning author can fetch this
+- Backs the frontend manage-book page (add chapter, add page, edit details actions)
+
+---
+
 ### Update book
 #### Headers:
 ```
@@ -972,6 +1010,8 @@ Content-Type     application/json
 404: {"error": "Book not found"}
 404: {"error": "Keyword not found on this book"}
 ```
+
+---
 
 ### Create chapter
 #### Headers:
@@ -1587,6 +1627,197 @@ Content-Type     application/json
 
 ---
 
+### My library
+#### Headers:
+```
+Authorization    Bearer <access_token>
+```
+#### Body:
+```
+None
+```
+#### Success response 200:
+```json
+[
+    {
+        "id": 1,
+        "book": {
+            "id": 1,
+            "title": "My First Book",
+            "cover_image": "/media/bookCovers/paid/default.png",
+            "author": {
+                "author_username": "janedoe",
+                "pen_name": "Jane Doe",
+                "avatar_url": "https://api.noveleshelf.com/media/avatars/author/default.png"
+            },
+            "genre_list": ["Romance"],
+            "is_complete": false,
+            "book_tier": 1
+        },
+        "completion_percentage": "0.00",
+        "is_completed": false,
+        "started_at": "2026-06-08T12:00:00Z",
+        "completed_at": null,
+        "last_read_at": null
+    }
+]
+```
+#### Notes:
+- Returns book card info inline — no second call needed to render the shelf
+- Ordered by most recently read, then most recently added
+
+---
+
+### Add book to library
+#### Headers:
+```
+Authorization    Bearer <access_token>
+Content-Type     application/json
+```
+#### Body:
+```json
+{
+    "book_id": 1
+}
+```
+#### Success response 201 (created) or 200 (already in library):
+```json
+{
+    "id": 1,
+    "book": {...},
+    "completion_percentage": "0.00",
+    "is_completed": false,
+    "started_at": "2026-06-08T12:00:00Z",
+    "completed_at": null,
+    "last_read_at": null
+}
+```
+#### Error responses:
+```json
+400: {"detail": "book_id is required."}
+404: Book not found / not visible / not approved
+```
+#### Notes:
+- Book must be `status=approved` and `is_visible=True`
+- Adding a book already in the library returns 200, not an error
+
+---
+
+### Remove book from library
+#### Headers:
+```
+Authorization    Bearer <access_token>
+```
+#### Body:
+```
+None
+```
+#### Success response 204:
+```
+No content
+```
+#### Notes:
+- Removes the `UserBook` record entirely — does not affect chapter unlocks or reading progress
+
+---
+
+### Read chapter
+#### Headers:
+```
+Authorization    Bearer <access_token>
+```
+#### Body:
+```
+None
+```
+#### Success response 200 (accessible):
+```json
+{
+    "id": 1,
+    "chapter_number": 1,
+    "title": "The Beginning",
+    "content": "Full chapter text...",
+    "word_count": 1250,
+    "is_free": true,
+    "unlock_cost": 0,
+    "is_final": false,
+    "book_title": "My First Book",
+    "total_chapters": 5,
+    "published_at": "2026-05-08T12:00:00Z"
+}
+```
+#### Locked response 402 (needs unlock):
+```json
+{
+    "locked": true,
+    "chapter": {
+        "id": 2,
+        "chapter_number": 2,
+        "title": "The Middle",
+        "unlock_cost": 10,
+        "book_title": "My First Book",
+        "word_count": 1400
+    },
+    "wallet": {
+        "quill_balance": 0,
+        "gold_ink_balance": 0,
+        "black_ink_balance": 8
+    }
+}
+```
+#### Notes:
+- Free chapters auto-create a `UserReadingProgress` record and auto-add the book to the reader's library on first read
+- Already-unlocked chapters return content directly and mark `is_read`
+- Locked chapters never return content — frontend must call unlock first
+
+---
+
+### Unlock chapter
+#### Headers:
+```
+Authorization    Bearer <access_token>
+```
+#### Body:
+```
+None
+```
+#### Success response 200:
+```json
+{
+    "detail": "Chapter unlocked.",
+    "used": {
+        "black_ink": 8,
+        "gold_ink": 0,
+        "quills": 2
+    },
+    "wallet": {
+        "quill_balance": 0,
+        "gold_ink_balance": 0,
+        "black_ink_balance": 0
+    }
+}
+```
+#### Error response 402 (insufficient funds):
+```json
+{
+    "detail": "Insufficient funds.",
+    "wallet": {
+        "quill_balance": 0,
+        "gold_ink_balance": 0,
+        "black_ink_balance": 8
+    },
+    "cost": 10
+}
+```
+#### Notes:
+- Spend order is always black_ink → gold_ink → quills
+- Writes one `Transaction` record per currency type actually used
+- Auto-adds the book to the reader's library if not already there
+- Already-unlocked chapters return 200 with a message, no double charge
+- Free chapters return 400 — use the read endpoint directly, no unlock needed
+
+---
+
 ### Featured books and authors
 #### Headers:
 ```
@@ -1806,14 +2037,18 @@ None
 
 ---
 
-## Notes for developers
+## Parking Lot
 
-See [DEVELOPER_NOTES.md](DEVELOPER_NOTES.md) for full details on:
-- Model descriptions and business rules
-- View specifications
-- TODO items
-- Frontend notes
+> Things known to be missing or not yet decided — not blockers for current testing, but worth tracking.
+
+- **Reviews, comments, flagging** — not built anywhere (model exists, no views/urls). Pulled from this README until implemented.
+- **Library detail view** — single book within library context (vs. flat list) not yet built.
+- **Author preview / bypass** — authors reading their own paid chapters without affecting reader stats. In progress.
+- **Page + chapter ordering** — `BookPage.page_type` and `Chapter.chapter_number` aren't merged into one reading-order sequence yet. Planned as a fixed positional rule by `page_type` (no migration), not a free-form `order` field.
+- **Reading progress completion %** — `UserBook.completion_percentage` is not yet updated automatically as chapters are read.
+- **Convert free book to paid** — when a free author upgrades to paid author and wants to convert an existing free book: chapters with existing unlocks (always `unlock_currency_type: 'free'`) must stay accessible to readers who already unlocked them; only chapters with no unlocks can switch to paid; new chapters going forward are paid. Not designed in detail or built yet.
+- **Book tier snapshot** — `Book.book_tier` is meant to snapshot the author's tier at the time of book creation, so that if the author's tier changes later, existing books keep their original tier rate and only new books get the new rate. Confirm this snapshot behavior is actually implemented in `create_book` before relying on it.
 
 ---
 
-[← Back to Server README](../README.md)
+[← Back to Server README](../readme.md)

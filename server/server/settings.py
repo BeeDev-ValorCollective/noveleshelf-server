@@ -63,6 +63,7 @@ INSTALLED_APPS = [
     'booksApp.apps.BooksappConfig',
     'notificationApp.apps.NotificationappConfig',
     'currencyApp.apps.CurrencyappConfig',
+    'statsApp.apps.StatsappConfig',
 ]
 
 MIDDLEWARE = [

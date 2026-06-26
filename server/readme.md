@@ -33,14 +33,14 @@ sudo dpkg-reconfigure unattended-upgrades
 ## App Structure
 ```
 server/
-├── booksApp/        — Books, chapters, genres endpoints → [Documentation](booksApp/README.md)
-├── cronApp/         — Cron job logging → [Documentation](cronApp/README.md)
-├── currencyApp/     — Wallet, currency, transactions endpoints (pending)
-├── notificationApp/ — Notifications, preferences, system emails → [Documentation](notificationApp/README.md)
+├── booksApp/        — Books, chapters, genres, reader library/unlock endpoints → [Documentation](booksApp/readme.md)
+├── cronApp/         — Cron job logging → [Documentation](cronApp/readme.md)
+├── currencyApp/     — Wallet, currency, transactions, daily reward, admin currency add → [Documentation](currencyApp/readme.md)
+├── notificationApp/ — Notifications, preferences, system emails → [Documentation](notificationApp/readme.md)
 ├── cron/            — Cron job functions
 ├── utils/           — Shared utility functions (email, tokens)
 ├── server/          — Core settings, URLs, debug endpoints
-├── userApp/         — Auth, user profiles, admin endpoints → [Documentation](userApp/README.md)
+├── userApp/         — Auth, user profiles, follow system, admin endpoints → [Documentation](userApp/readme.md)
 ├── logs/            — Cron job log files
 ├── manage.py
 ├── requirements.txt
@@ -53,11 +53,13 @@ server/
 
 | App | Description | Documentation | Developer Notes |
 |-----|-------------|---------------|-----------------|
-| userApp | Auth, user profiles, admin user management | [userApp README](userApp/readme.md) | [Developer Notes](userApp/dev_notes.md) |
-| booksApp | Books, chapters, genres | [booksApp README](booksApp/readme.md) | [Developer Notes](booksApp/dev_notes.md) |
+| userApp | Auth, user profiles, follow system, admin user management | [userApp README](userApp/readme.md) | — |
+| booksApp | Books, chapters, genres, reader library/unlock | [booksApp README](booksApp/readme.md) | — |
 | cronApp | Cron job logging | [cronApp README](cronApp/readme.md) | — |
 | notificationApp | Notifications, preferences, system emails | [notificationApp README](notificationApp/readme.md) | [Developer Notes](notificationApp/dev_notes.md) |
-| currencyApp | Wallet, currency, transactions | Coming soon | — |
+| currencyApp | Wallet, currency, transactions, daily login reward | [currencyApp README](currencyApp/readme.md) | — |
+
+> **Note:** `userApp` and `booksApp` previously had separate `dev_notes.md` files — both were deleted as stale/inaccurate. Their still-relevant content was folded into each app's own README Parking Lot section and this file's cross-app Parking Lot below. `notificationApp`'s dev_notes is current and kept.
 
 ---
 
@@ -241,6 +243,18 @@ None
 - If user has set a preferred role (default_login_role changed from reader) → skip gate, route directly to that role
 - Reader chosen → app.noveleshelf.com
 - Author/Admin/Mod chosen → noveleshelf.com
+
+---
+
+## Parking Lot — Cross-App
+
+> Things spanning multiple apps that don't have a clean home in any single app's README.
+
+- **Author payout calculation** — splitting revenue to authors based on currency type used (ink vs quill unlocks) is not designed or built. Touches `booksApp` (chapter unlock) and `currencyApp` (transaction records, payout transaction type already reserved).
+- **Reviews, comments, flagging** — not built anywhere; model exists in `booksApp` but no views/urls.
+- **Library detail view, page/chapter ordering, author preview/bypass** — in progress, see `booksApp` README Parking Lot for detail.
+- **Gold Ink ad rewards, Stripe Quill purchases** — not built; see `currencyApp` README Parking Lot for detail.
+- **Book visibility cascade on author deactivate/reactivate** — `userApp` deactivate/reactivate endpoints don't yet touch `booksApp` book visibility automatically.
 
 ---
 

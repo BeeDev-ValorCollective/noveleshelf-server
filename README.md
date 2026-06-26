@@ -7,8 +7,8 @@ This repository contains the backend services for the NovelShelf platform.
 ## Repository Structure
 ```
 noveleshelf-server/
-├── mailServer/          — Contact form email service
-├── server/              — Django REST API backend
+├── mailServer/          — Contact form email service (Node, iFast)
+├── server/              — Django REST API backend (Digital Ocean)
 └── README.md
 ```
 
@@ -20,17 +20,32 @@ noveleshelf-server/
 The main backend API for the NovelShelf platform. Handles authentication, user management, books, chapters, and currency.
 
 - Built with Django 5.x and Django REST Framework
-- MySQL database
+- MySQL/MariaDB database
 - JWT authentication
+- Hosted on Digital Ocean (Ubuntu, gunicorn + nginx)
 
 #### Shell access:
-- ssh -p 1394 noveleshelf@noveleshelf.com
-- password=(db password on env)
-- turn on environment:
-    - source /home/noveleshelf/virtualenv/public_html/api/3.10/bin/activate && cd /home/noveleshelf/public_html/api
+```
+ssh root@64.225.52.134
+cd /var/www/noveleshelf/noveleshelf-server
+source /var/www/noveleshelf/venv/bin/activate
+```
+
+See `server/readme.md` for full deployment commands.
 
 ### Mail Server — [Documentation](mailServer/readme.md)
-Contact form email service. May be replaced by the main Django backend at a later date.
+Contact form email service. Node.js, deployed on iFast cPanel hosting. May be replaced by the main Django backend at a later date.
+
+#### Shell access:
+```
+ssh -p 1394 noveleshelf@noveleshelf.com
+```
+Password is the db password on env. To activate the environment:
+```bash
+source /home/noveleshelf/virtualenv/public_html/api/3.10/bin/activate && cd /home/noveleshelf/public_html/api
+```
+
+> **Note:** the iFast/cPanel access info above was previously (and incorrectly) listed under the Django API section in this README. The Django API moved to Digital Ocean — this cPanel access is for `mailServer` only. If `mailServer` is itself Node (not the Python venv path shown), confirm and correct this shell access block — the venv path was carried over from before the split and may no longer be accurate for the Node mail service.
 
 ---
 
@@ -60,6 +75,7 @@ See Google drive for current required variables and create the env file inside `
 - **Auth**: JWT via djangorestframework-simplejwt
 - **Storage**: Local (S3 planned)
 - **Email**: Google Workspace SMTP
+- **Hosting**: Digital Ocean (Ubuntu, gunicorn + nginx) — IP `64.225.52.134`
 
 ---
 
@@ -70,45 +86,35 @@ See Google drive for current required variables and create the env file inside `
 
 ---
 
-## Deployment
+## Deployment — Django API (Digital Ocean)
 
-### Repository structure note
-The git repository (`repositories/noveleshelf-server/`) contains both the Django API and mailServer. The Django app runs from `public_html/api/`. After a git pull the relevant files need to be copied from the repository to the site folder.
-
-### New code changes (no database changes)
-1. `git pull` in `repositories/noveleshelf-server/`
-2. Copy relevant files from `repositories/noveleshelf-server/server/` to `public_html/api/`
-3. Restart app in cPanel Python app panel
-
-### New tables
-1. Export structure only from MySQL Workbench — select only new tables
-2. Find and replace `utf8mb4_0900_ai_ci` with `utf8mb4_unicode_ci` in exported file
-3. In phpMyAdmin import tab — uncheck **Enable foreign key checks**
-4. Import file
-5. SSH into server and run:
-```bash
-source /home/noveleshelf/virtualenv/public_html/api/3.10/bin/activate && cd /home/noveleshelf/public_html/api
-python manage.py migrate --fake
-python manage.py migrate
+### Standard deploy (code changes, no database changes)
 ```
-6. Copy relevant files from repository to site folder
-7. Restart app in cPanel Python app panel
+ssh root@64.225.52.134
+cd /var/www/noveleshelf/noveleshelf-server
+git pull origin deployed
+cd server
+source /var/www/noveleshelf/venv/bin/activate
+python3 manage.py migrate
+sudo systemctl restart gunicorn
+sudo systemctl status gunicorn
+```
 
-### Changes to existing tables
-1. Write ALTER statements in `alterations[nn].sql` file
-2. Run in phpMyAdmin SQL tab against the live database
-3. SSH into server and run fake migrate for affected migrations
-4. Run `python manage.py migrate`
-5. Copy relevant files from repository to site folder
-6. Restart app in cPanel Python app panel
+### New tables / schema changes
+MariaDB on this host has `ALTER TABLE` restrictions, so schema changes need a SQL file workaround rather than relying on `manage.py migrate` alone for the DDL:
+1. Generate the migration locally as normal (`python manage.py makemigrations`)
+2. Export the resulting schema change as a SQL file
+3. Run the SQL file manually against the production database (via the DO box directly or your MySQL client of choice — confirm current preferred method, this may have changed since cPanel days)
+4. SSH in, pull the code, and run `python3 manage.py migrate --fake` if needed to sync Django's migration state with the manually-applied schema, then `python3 manage.py migrate`
+5. Restart gunicorn
+
+> **This section needs verification.** The previous cPanel/phpMyAdmin-based process (export structure only, find/replace collation, disable foreign key checks, import via phpMyAdmin) doesn't apply on Digital Ocean — there's no phpMyAdmin in this setup by default. Confirm and document the actual current process for schema changes next time one is needed, rather than relying on this placeholder.
 
 ### If migration conflicts (duplicate column/table errors)
-- Fake the specific conflicting migration:
 ```bash
-python manage.py migrate --fake userApp [migration_name]
+python manage.py migrate --fake booksApp [migration_name]
 ```
-- Then run `python manage.py migrate` again
-- Repeat until all migrations show `[X]` in `showmigrations`
+Then run `python manage.py migrate` again. Repeat until all migrations show `[X]` in `showmigrations`.
 
 ### Environment variables
 The `.env` file is not tracked in git (`.gitignore`) and must be managed manually on the server.
@@ -128,22 +134,18 @@ The local `.env` has a date comment at the bottom (`# UPDATED MM/DD/YY`) indicat
 **Never commit the `.env` file to git — it contains passwords and secret keys.**
 
 ### Cron jobs
-Cron jobs are managed via `django-crontab` — do NOT use the cPanel cron job interface.
+Cron jobs are managed via `django-crontab`.
 
 **On first deployment or when cron jobs change:**
 ```bash
-source /home/noveleshelf/virtualenv/public_html/api/3.10/bin/activate && cd /home/noveleshelf/public_html/api
+ssh root@64.225.52.134
+cd /var/www/noveleshelf/noveleshelf-server/server
+source /var/www/noveleshelf/venv/bin/activate
 python manage.py crontab add
 python manage.py crontab show
 ```
 
-**Current cron jobs:**
-| Schedule | Job | Description |
-|----------|-----|-------------|
-| Daily at midnight | `cron.user_cron.deactivate_unverified_users` | Deactivates unverified users past 7 day grace period |
-| Sundays at 3am | `cron.user_cron.flush_expired_tokens` | Cleans up expired JWT tokens |
-| Daily at 1am | `cron.books_cron.mark_books_not_new` | Marks books older than 30 days as not new |
-| Daily at 1am | `cron.books_cron.mark_chapters_not_new` | Marks chapters older than 7 days as not new |
+**Current cron jobs:** see [`server/cronApp/readme.md`](server/cronApp/readme.md) — kept there as the single source of truth so this file doesn't drift out of sync with `settings.py` again.
 
 **Notes:**
 - Running `crontab add` removes and re-adds all jobs — this is normal
@@ -183,3 +185,9 @@ python manage.py crontab run <hash>
 - Check `logs/cron.log` for file log entry
 - Check Django admin → CronApp → Cron logs for database entry
 - Verify expected data changes occurred
+
+---
+
+## Deployment — Mail Server (iFast/cPanel)
+
+See [`mailServer/readme.md`](mailServer/readme.md) for Node-specific deployment steps on iFast. Not yet documented in this top-level file — add a summary here once that README is reviewed.
