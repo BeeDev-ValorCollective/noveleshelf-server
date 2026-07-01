@@ -42,6 +42,13 @@ def get_author_display(book):
     return None
 
 
+def get_display_name(profile, author_type):
+    """Shared display name resolution for author profiles."""
+    if profile.show_real_name and profile.first_name:
+        return f'{profile.first_name} {profile.last_name or ""}'.strip()
+    return profile.pen_name or profile.author_username or profile.user.email
+
+
 def format_book_summary(book):
     """Returns summary card data for a book."""
     description = book.description or ''
@@ -73,44 +80,33 @@ def format_book_summary(book):
 
 def format_author_summary(profile, author_type):
     """Returns summary card data for an author."""
+    name = get_display_name(profile, author_type)
+    is_founding = getattr(profile, 'is_founding_author', False) if author_type == 'paid' else False
+
     if author_type == 'paid':
-        if profile.show_real_name and profile.first_name:
-            name = f'{profile.first_name} {profile.last_name or ""}'.strip()
-        else:
-            name = profile.pen_name or profile.author_username or profile.user.email
-        return {
-            'display_name': name,
-            'username': profile.author_username,
-            'avatar_url': profile.avatar_url.url if profile.avatar_url else None,
-            'bio': profile.bio,
-            'is_featured': profile.is_featured,
-            'is_new': False,
-            'author_type': 'paid',
-            'book_count': Book.objects.filter(
-                author_profile=profile,
-                status='approved',
-                is_visible=True
-            ).count()
-        }
+        book_count = Book.objects.filter(
+            author_profile=profile,
+            status='approved',
+            is_visible=True
+        ).count()
     else:
-        if profile.show_real_name and profile.first_name:
-            name = f'{profile.first_name} {profile.last_name or ""}'.strip()
-        else:
-            name = profile.pen_name or profile.author_username or profile.user.email
-        return {
-            'display_name': name,
-            'username': profile.author_username,
-            'avatar_url': profile.avatar_url.url if profile.avatar_url else None,
-            'bio': profile.bio,
-            'is_featured': profile.is_featured,
-            'is_new': False,
-            'author_type': 'free',
-            'book_count': Book.objects.filter(
-                free_author_profile=profile,
-                status='approved',
-                is_visible=True
-            ).count()
-        }
+        book_count = Book.objects.filter(
+            free_author_profile=profile,
+            status='approved',
+            is_visible=True
+        ).count()
+
+    return {
+        'id': profile.id,
+        'display_name': name,
+        'username': profile.author_username,
+        'avatar_url': profile.avatar_url.url if profile.avatar_url else None,
+        'bio': profile.bio,
+        'is_featured': profile.is_featured,
+        'is_founding_author': is_founding,
+        'author_type': author_type,
+        'book_count': book_count,
+    }
 
 
 def get_visible_books():
@@ -131,6 +127,21 @@ def get_visible_books():
     )
 
 
+def get_visible_authors():
+    """Returns (paid_qs, free_qs) for all publicly visible authors."""
+    paid = AuthorProfile.objects.filter(
+        is_publicly_visible=True,
+        is_active=True,
+    ).select_related('user')
+
+    free = FreeAuthorProfile.objects.filter(
+        is_publicly_visible=True,
+        is_active=True,
+    ).select_related('user')
+
+    return paid, free
+
+
 # ─── Featured ─────────────────────────────────────────────────────────────────
 
 @api_view(['GET'])
@@ -148,7 +159,6 @@ def featured(request):
         is_publicly_visible=True
     ).select_related('user')
 
-    # combine and cap at 4 total featured authors
     authors = []
     for profile in paid_authors:
         authors.append(format_author_summary(profile, 'paid'))
@@ -164,14 +174,19 @@ def featured(request):
     })
 
 
-# ─── Book List ────────────────────────────────────────────────────────────────
+# ─── Book / Author List ───────────────────────────────────────────────────────
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def book_list(request):
+    view = request.query_params.get('view', 'books')
+
+    if view == 'authors':
+        return author_list(request)
+
+    # ── Books ──
     books = get_visible_books()
 
-    # search
     search = request.query_params.get('search')
     if search:
         books = books.filter(
@@ -187,7 +202,6 @@ def book_list(request):
             Q(relationship_tags__tag__name__icontains=search)
         ).distinct()
 
-    # filters
     genre = request.query_params.get('genre')
     if genre:
         books = books.filter(genres__genre__id=genre)
@@ -216,6 +230,17 @@ def book_list(request):
     if is_complete is not None:
         books = books.filter(is_complete=is_complete.lower() == 'true')
 
+    # ordering
+    order = request.query_params.get('order', 'newest')
+    if order == 'az':
+        books = books.order_by('title')
+    elif order == 'za':
+        books = books.order_by('-title')
+    elif order == 'featured':
+        books = books.order_by('-is_featured', '-created_at')
+    else:
+        books = books.order_by('-created_at')
+
     # pagination
     try:
         page = int(request.query_params.get('page', 1))
@@ -224,19 +249,94 @@ def book_list(request):
         page = 1
         page_size = 12
 
-    page_size = min(page_size, 50)  # cap at 50
+    page_size = min(page_size, 50)
     start = (page - 1) * page_size
     end = start + page_size
 
     total = books.count()
-    books_page = books.order_by('-created_at')[start:end]
+    books_page = books[start:end]
 
     return Response({
+        'view': 'books',
         'count': total,
         'page': page,
         'page_size': page_size,
-        'total_pages': -(-total // page_size),  # ceiling division
+        'total_pages': -(-total // page_size),
         'results': [format_book_summary(b) for b in books_page],
+    })
+
+
+def author_list(request):
+    """Inner handler for ?view=authors — called from book_list."""
+    paid_qs, free_qs = get_visible_authors()
+
+    search = request.query_params.get('search')
+    if search:
+        paid_qs = paid_qs.filter(
+            Q(pen_name__icontains=search) |
+            Q(author_username__icontains=search) |
+            Q(first_name__icontains=search) |
+            Q(last_name__icontains=search) |
+            Q(bio__icontains=search)
+        )
+        free_qs = free_qs.filter(
+            Q(pen_name__icontains=search) |
+            Q(author_username__icontains=search) |
+            Q(first_name__icontains=search) |
+            Q(last_name__icontains=search) |
+            Q(bio__icontains=search)
+        )
+
+    is_featured = request.query_params.get('is_featured')
+    if is_featured is not None:
+        featured_val = is_featured.lower() == 'true'
+        paid_qs = paid_qs.filter(is_featured=featured_val)
+        free_qs = free_qs.filter(is_featured=featured_val)
+
+    # founding filter only applies to paid authors
+    is_founding = request.query_params.get('is_founding_author')
+    if is_founding is not None:
+        founding_val = is_founding.lower() == 'true'
+        paid_qs = paid_qs.filter(is_founding_author=founding_val)
+        if founding_val:
+            free_qs = free_qs.none()
+
+    # build combined list
+    authors = []
+    for profile in paid_qs:
+        authors.append(format_author_summary(profile, 'paid'))
+    for profile in free_qs:
+        authors.append(format_author_summary(profile, 'free'))
+
+    # ordering
+    order = request.query_params.get('order', 'az')
+    if order == 'za':
+        authors.sort(key=lambda a: a['display_name'].lower(), reverse=True)
+    elif order == 'featured':
+        authors.sort(key=lambda a: (not a['is_featured'], a['display_name'].lower()))
+    else:
+        authors.sort(key=lambda a: a['display_name'].lower())
+
+    # pagination
+    try:
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 12))
+    except ValueError:
+        page = 1
+        page_size = 12
+
+    page_size = min(page_size, 50)
+    total = len(authors)
+    start = (page - 1) * page_size
+    end = start + page_size
+
+    return Response({
+        'view': 'authors',
+        'count': total,
+        'page': page,
+        'page_size': page_size,
+        'total_pages': -(-total // page_size),
+        'results': authors[start:end],
     })
 
 
@@ -253,13 +353,11 @@ def book_detail(request, book_id):
             status=status.HTTP_404_NOT_FOUND
         )
 
-    # published pages
     pages = BookPage.objects.filter(
         book=book,
         is_published=True
     ).values('id', 'page_type', 'content')
 
-    # published chapters — no content, just metadata for the chapter list
     chapters = Chapter.objects.filter(
         book=book,
         status='published'
@@ -281,6 +379,7 @@ def book_detail(request, book_id):
     data['chapters'] = chapters_data
 
     return Response(data)
+
 
 @api_view(['GET'])
 @permission_classes([AllowAny])

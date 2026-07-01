@@ -104,7 +104,7 @@ class AuthorProfileDashboardSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AuthorProfile
-        fields = ['author_username', 'pen_name', 'first_name', 'last_name', 'show_real_name', 'is_publicly_visible', 'is_active', 'is_featured', 'bio', 'tier', 'contract_link', 'avatar_url', 'created_at', 'follower_count']
+        fields = ['author_username', 'pen_name', 'first_name', 'last_name', 'show_real_name', 'is_publicly_visible', 'is_active', 'is_featured', 'bio', 'tier', 'contract_link', 'avatar_url', 'created_at', 'follower_count', 'is_founding_author']
 
     def get_follower_count(self, obj):
         return obj.followers.count()

@@ -130,3 +130,15 @@ class FoundingAuthorSlotAdmin(admin.ModelAdmin):
             return f'{count} (lifetime)'
         return f'{count} / {limit}'
     eligible_book_count.short_description = 'Books Assigned'
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if obj.author_profile:
+            obj.author_profile.is_founding_author = True
+            obj.author_profile.save(update_fields=['is_founding_author'])
+
+    def delete_model(self, request, obj):
+        if obj.author_profile:
+            obj.author_profile.is_founding_author = False
+            obj.author_profile.save(update_fields=['is_founding_author'])
+        super().delete_model(request, obj)

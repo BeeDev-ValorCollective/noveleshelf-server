@@ -108,6 +108,7 @@ class AuthorProfile(models.Model):
     show_real_name = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     is_featured = models.BooleanField(default=False)
+    is_founding_author = models.BooleanField(default=False)
     bio = models.TextField(null=True, blank=True)
     tier = models.IntegerField(default=1)
     free_chapters = models.IntegerField(default=10, null=True, blank=True)
