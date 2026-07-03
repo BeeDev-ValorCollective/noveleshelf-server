@@ -69,6 +69,7 @@ def format_book_summary(book):
         'is_complete': book.is_complete,
         'is_new': book.is_new,
         'is_featured': book.is_featured,
+        'is_founding_eligible': book.founding_author_eligibility.exists(),
         'chapter_count': book.chapters.count(),
         'published_chapter_count': book.chapters.filter(status='published').count(),
         'genres': [{'id': g.genre.id, 'name': g.genre.name} for g in book.genres.all()],
