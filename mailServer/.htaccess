@@ -1,0 +1,18 @@
+# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION BEGIN
+PassengerAppRoot "/home/noveleshelf/public_html/nesmail"
+PassengerBaseURI "/"
+PassengerNodejs "/home/noveleshelf/nodevenv/public_html/nesmail/20/bin/node"
+PassengerAppType node
+PassengerStartupFile server.js
+# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION END
+
+<IfModule mod_headers.c>
+  Header always set Access-Control-Allow-Origin "https://noveleshelf.com"
+  Header always set Vary "Origin"
+  Header always set Access-Control-Allow-Methods "GET,POST,OPTIONS"
+  Header always set Access-Control-Allow-Headers "Content-Type, Authorization, Accept"
+</IfModule>
+
+RewriteEngine On
+RewriteCond %{REQUEST_METHOD} OPTIONS
+RewriteRule ^ - [R=204,L]

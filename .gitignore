@@ -8,6 +8,7 @@ lerna-debug.log*
 *DS_Store
 *__pycache__
 *logs/
+.env
 
 # ignore all uploaded media
 server/media/avatars/author/*

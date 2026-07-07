@@ -16,6 +16,7 @@ urlpatterns = [
     # userApp urls
     path('api/auth/', include('userApp.urls.auth_urls')),
     path('api/user/', include('userApp.urls.user_urls')),
+    path('api/follow/', include('userApp.urls.follow_urls')),
     path('api/admin/users/', include('userApp.urls.admin_urls')),
     # notificationApp urls
     path('api/notifications/', include('notificationApp.urls')),
@@ -23,7 +24,9 @@ urlpatterns = [
     path('api/books/admin/', include('booksApp.urls.admin_urls')),
     path('api/books/author/', include('booksApp.urls.author_urls')),
     path('api/books/public/', include('booksApp.urls.public_urls')),
-    path('api/books/user/', include('booksApp.urls.user_urls')),
+    path('api/books/reader/', include('booksApp.urls.reader_urls')),
     # currencyApp urls
     path('api/currency/', include('currencyApp.urls')),
+    # statsApp urls
+    path('api/stats/admin/', include('statsApp.urls.admin_urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import UserProfile, UserWallet, AdminProfile, AuthorProfile, FreeAuthorProfile, ModeratorProfile, AuthorRequest, UserFollowAuthor
+from currencyApp.serializers import FoundingAuthorBadgeSerializer
 
 User = get_user_model()
 
@@ -55,9 +56,17 @@ class AdminProfileSerializer(serializers.ModelSerializer):
 
 
 class AuthorProfileSerializer(BooleanFormDataMixin, serializers.ModelSerializer):
+    founding_author = FoundingAuthorBadgeSerializer(source='founding_author_slot', read_only=True)
+
     class Meta:
         model = AuthorProfile
-        fields = ['author_username', 'pen_name', 'first_name', 'last_name', 'show_real_name', 'is_publicly_visible', 'is_active', 'is_featured', 'bio', 'tier', 'contract_link', 'avatar_url', 'created_at']
+        fields = ['author_username', 'pen_name', 'first_name', 'last_name', 'show_real_name', 'is_publicly_visible', 'is_active', 'is_featured', 'bio', 'tier', 'contract_link', 'avatar_url', 'created_at', 'founding_author']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if data.get('founding_author') is None:
+            data.pop('founding_author', None)
+        return data
 
 
 class FreeAuthorProfileSerializer(serializers.ModelSerializer):
@@ -71,6 +80,10 @@ class ModeratorProfileSerializer(serializers.ModelSerializer):
         model = ModeratorProfile
         fields = ['mod_username', 'avatar_url', 'assigned_by', 'created_at']
 
+class AuthorRequestUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'email', 'username']
 
 class AuthorRequestSerializer(serializers.ModelSerializer):
     class Meta:
@@ -79,6 +92,8 @@ class AuthorRequestSerializer(serializers.ModelSerializer):
 
 
 class AuthorRequestAdminSerializer(serializers.ModelSerializer):
+    user = AuthorRequestUserSerializer(read_only=True)
+
     class Meta:
         model = AuthorRequest
         fields = ['id', 'user', 'request_type', 'status', 'bio', 'genre_interest', 'writing_sample_link', 'admin_notes', 'reader_notes', 'contact_attempted', 'created_at', 'updated_at']
@@ -89,7 +104,7 @@ class AuthorProfileDashboardSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AuthorProfile
-        fields = ['author_username', 'pen_name', 'first_name', 'last_name', 'show_real_name', 'is_publicly_visible', 'is_active', 'is_featured', 'bio', 'tier', 'contract_link', 'avatar_url', 'created_at', 'follower_count']
+        fields = ['author_username', 'pen_name', 'first_name', 'last_name', 'show_real_name', 'is_publicly_visible', 'is_active', 'is_featured', 'bio', 'tier', 'contract_link', 'avatar_url', 'created_at', 'follower_count', 'is_founding_author']
 
     def get_follower_count(self, obj):
         return obj.followers.count()
