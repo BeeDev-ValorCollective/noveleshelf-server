@@ -64,7 +64,11 @@ def handle_chapter_post_save(sender, instance, created, **kwargs):
         Chapter.objects.filter(pk=instance.pk).update(published_at=timezone.now())
 
         # set is_free based on chapter number vs book free_chapters
-        is_free = instance.chapter_number <= instance.book.free_chapters
+        # free author books: every chapter is always free, regardless of count
+        if instance.book.free_author_profile is not None and instance.book.author_profile is None:
+            is_free = True
+        else:
+            is_free = instance.chapter_number <= instance.book.free_chapters
         Chapter.objects.filter(pk=instance.pk).update(is_free=is_free)
 
         # recalculate unlock cost now that is_free is confirmed
