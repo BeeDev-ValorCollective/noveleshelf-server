@@ -8,6 +8,8 @@ from ..serializers import RegisterSerializer, UserSerializer
 from utils.email_utils import send_verification_email, send_password_reset_email, send_notification
 from userApp.models import EmailVerificationToken, PasswordResetToken
 from currencyApp.views.reward_views import process_daily_login_reward
+from statsApp.utils import record_daily_activity
+from statsApp.utils import record_daily_activity
 from django.utils import timezone
 from ..models import EmailVerificationToken
 import threading
@@ -102,6 +104,8 @@ def login(request):
 @permission_classes([IsAuthenticated])
 def me(request):
     process_daily_login_reward(request.user)
+    platform = request.headers.get('X-Client-Platform', 'unknown')
+    record_daily_activity(request.user, 'login', platform=platform)
     serializer = UserSerializer(request.user)
     return Response(serializer.data)
 
