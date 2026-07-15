@@ -1,6 +1,14 @@
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 from django.core.exceptions import ValidationError
+
+
+CURRENCY_TYPES = [
+    ('black_ink', 'Black Ink Drop'),
+    ('gold_ink', 'Gold Ink Drop'),
+    ('quills', 'Quills'),
+]
 
 
 class DailyLoginReward(models.Model):
@@ -28,12 +36,7 @@ class Transaction(models.Model):
         ('author_payout', 'Author Payout'),
         ('admin_adjustment', 'Admin Adjustment'),
         ('admin_gift', 'Admin Gift'),
-    ]
-
-    CURRENCY_TYPES = [
-        ('black_ink', 'Black Ink Drop'),
-        ('gold_ink', 'Gold Ink Drop'),
-        ('quills', 'Quills'),
+        ('promo_code', 'Promo Code Redemption'),
     ]
 
     user = models.ForeignKey(
@@ -64,6 +67,97 @@ class PlatformSettings(models.Model):
 
     def __str__(self):
         return 'Platform Settings'
+
+
+class PromoCode(models.Model):
+    """
+    A redeemable code that credits a user's wallet with a currency amount.
+    Built for the book-fair giveaway use case — a single code distributed
+    widely (social media, printed cards) that each user can only redeem once.
+
+    Only black_ink crediting is implemented in the redemption view for now
+    (per client request, to avoid touching purchased/earned Quills or Gold
+    Ink logic) — currency_type stays generic so this doesn't need a schema
+    change if that scope grows later.
+
+    max_redemptions:
+        None  -> unlimited redemptions
+        N     -> capped at N total redemptions across all users
+
+    Deactivating a code for a specific user is handled entirely by the
+    PromoCodeRedemption unique_together constraint below — there's no
+    separate "used" flag per user, since the redemption row itself is
+    the record of use.
+    """
+    code = models.CharField(max_length=32, unique=True, db_index=True)
+    currency_type = models.CharField(
+        max_length=10, choices=CURRENCY_TYPES, default='black_ink'
+    )
+    amount = models.PositiveIntegerField()
+    is_active = models.BooleanField(default=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    max_redemptions = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text='Leave blank for unlimited redemptions.',
+    )
+    times_redeemed = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Promo Code'
+        verbose_name_plural = 'Promo Codes'
+
+    def __str__(self):
+        return self.code
+
+    def clean(self):
+        if self.expires_at and self.expires_at <= timezone.now():
+            raise ValidationError('Expiration date must be in the future.')
+
+    def save(self, *args, **kwargs):
+        # Normalize casing at the model level (not just in the admin form)
+        # so every entry point — admin, shell, a future public API — treats
+        # "SAVE10" and "save10" as the same code.
+        if self.code:
+            self.code = self.code.strip().upper()
+        super().save(*args, **kwargs)
+
+    def is_expired(self):
+        return self.expires_at is not None and timezone.now() >= self.expires_at
+
+    def has_redemptions_remaining(self):
+        return self.max_redemptions is None or self.times_redeemed < self.max_redemptions
+
+
+class PromoCodeRedemption(models.Model):
+    """
+    One redemption of a PromoCode by a user. This row's existence IS the
+    "deactivate this code for this user" behavior from the client request —
+    a second redemption attempt is blocked by the unique_together constraint,
+    no separate per-user flag needed.
+    """
+    user = models.ForeignKey(
+        'userApp.User',
+        on_delete=models.CASCADE,
+        related_name='promo_redemptions',
+    )
+    promo_code = models.ForeignKey(
+        PromoCode,
+        on_delete=models.CASCADE,
+        related_name='redemptions',
+    )
+    redeemed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('user', 'promo_code')]
+        ordering = ['-redeemed_at']
+        verbose_name = 'Promo Code Redemption'
+        verbose_name_plural = 'Promo Code Redemptions'
+
+    def __str__(self):
+        return f'{self.user.email} redeemed {self.promo_code.code}'
 
 
 class FoundingAuthorBonusTier(models.Model):

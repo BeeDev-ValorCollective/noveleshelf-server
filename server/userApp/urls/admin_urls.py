@@ -1,6 +1,8 @@
 from django.urls import path
 from userApp.views import admin_views
 
+# api/admin/users/
+
 urlpatterns = [
     path('author-upgrade/', admin_views.upgrade_to_author),
     path('admin-upgrade/', admin_views.upgrade_to_admin),

@@ -4,6 +4,8 @@ from booksApp.views.reader_views import (
     chapter_read, chapter_unlock, set_auto_unlock_preference
 )
 
+# api/books/reader/
+
 urlpatterns = [
     # Reader - Library
     path('library/', my_library, name='my-library'),

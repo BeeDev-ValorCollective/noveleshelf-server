@@ -3,6 +3,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 from .models import (
     DailyLoginReward, Transaction, PlatformSettings,
+    PromoCode, PromoCodeRedemption,
     FoundingAuthorBonusTier, FoundingAuthorDuration,
     FoundingAuthorSlot, FoundingAuthorEligibleBook,
 )
@@ -26,6 +27,52 @@ class TransactionAdmin(admin.ModelAdmin):
 @admin.register(PlatformSettings)
 class PlatformSettingsAdmin(admin.ModelAdmin):
     list_display = ['daily_black_ink_reward', 'updated_at']
+
+
+class PromoCodeRedemptionInline(admin.TabularInline):
+    """
+    Read-only audit trail shown on a PromoCode's detail page. Redemptions
+    are only ever created through the redemption flow itself, never by
+    hand — this is for visibility, not data entry.
+    """
+    model = PromoCodeRedemption
+    extra = 0
+    can_delete = False
+    fields = ['user', 'redeemed_at']
+    readonly_fields = ['user', 'redeemed_at']
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(PromoCode)
+class PromoCodeAdmin(admin.ModelAdmin):
+    list_display = [
+        'code', 'currency_type', 'amount', 'is_active',
+        'times_redeemed', 'max_redemptions', 'expires_at', 'created_at',
+    ]
+    list_filter = ['currency_type', 'is_active']
+    search_fields = ['code']
+    readonly_fields = ['times_redeemed', 'created_at', 'updated_at']
+    inlines = [PromoCodeRedemptionInline]
+
+
+@admin.register(PromoCodeRedemption)
+class PromoCodeRedemptionAdmin(admin.ModelAdmin):
+    """
+    Read-only log for browsing/searching redemptions directly (e.g. "did
+    user X redeem this code"), separate from the per-code inline view above.
+    """
+    list_display = ['user', 'promo_code', 'redeemed_at']
+    list_filter = ['promo_code']
+    search_fields = ['user__email', 'promo_code__code']
+    readonly_fields = ['user', 'promo_code', 'redeemed_at']
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(FoundingAuthorBonusTier)

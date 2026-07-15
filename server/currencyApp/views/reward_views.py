@@ -2,8 +2,15 @@ from datetime import timedelta
 
 from django.db import transaction
 from django.utils import timezone
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 
-from currencyApp.models import DailyLoginReward, PlatformSettings, Transaction
+from currencyApp.models import (
+    DailyLoginReward, PlatformSettings, Transaction,
+    PromoCode, PromoCodeRedemption,
+)
 from userApp.models import UserWallet
 
 
@@ -102,11 +109,16 @@ def process_daily_login_reward(user):
             'updated_at',
         ])
 
-        cycle_day = ((streak_day - 1) % REWARD_CYCLE_LENGTH) + 1
+        # Use the pattern day (not the raw, ever-growing streak_day) so the
+        # note correctly says "yearly milestone"/"yearly completion bonus"
+        # every time that pattern position recurs (day 91, 456, 821, ...),
+        # not just the first time it's ever hit.
+        pattern_day = _get_reward_pattern_day(streak_day)
+        cycle_day = ((pattern_day - 1) % REWARD_CYCLE_LENGTH) + 1
         notes = f'Daily login reward - streak day {streak_day}'
-        if streak_day == SUPER_BONUS_STREAK_DAY:
+        if pattern_day == SUPER_BONUS_STREAK_DAY:
             notes += ' (yearly completion bonus)'
-        elif streak_day in YEARLY_MILESTONE_REWARDS:
+        elif pattern_day in YEARLY_MILESTONE_REWARDS:
             notes += ' (yearly milestone bonus)'
         else:
             notes += f' (reward cycle day {cycle_day} of {REWARD_CYCLE_LENGTH})'
@@ -121,3 +133,95 @@ def process_daily_login_reward(user):
         )
 
     return True
+
+
+def redeem_promo_code(user, code_input):
+    
+    #Redeem a promo code for the given user, crediting their wallet.
+
+    #A code can only be redeemed once per user -- enforced by the
+    #PromoCodeRedemption (user, promo_code) unique constraint, checked
+    #while the PromoCode row itself is locked so two simultaneous
+    #redemption attempts for the same code can't both succeed or both
+    #push it past its max_redemptions cap.
+
+    #Returns a dict: {'success': bool, 'error': str or None,
+    #'amount': int or None, 'currency_type': str or None}.
+
+    #Only black_ink crediting is supported for now.
+    code = (code_input or '').strip().upper()
+    if not code:
+        return {'success': False, 'error_code': 'missing_code', 'error': 'A code is required.', 'amount': None, 'currency_type': None}
+
+    with transaction.atomic():
+        try:
+            promo_code = PromoCode.objects.select_for_update().get(code=code)
+        except PromoCode.DoesNotExist:
+            return {'success': False, 'error_code': 'invalid_code', 'error': 'Invalid code.', 'amount': None, 'currency_type': None}
+
+        if not promo_code.is_active:
+            return {'success': False, 'error_code': 'inactive', 'error': 'This code is no longer active.', 'amount': None, 'currency_type': None}
+
+        if promo_code.is_expired():
+            return {'success': False, 'error_code': 'expired', 'error': 'This code has expired.', 'amount': None, 'currency_type': None}
+
+        if not promo_code.has_redemptions_remaining():
+            return {'success': False, 'error_code': 'redemption_limit_reached', 'error': 'This code has reached its redemption limit.', 'amount': None, 'currency_type': None}
+
+        if PromoCodeRedemption.objects.filter(user=user, promo_code=promo_code).exists():
+            return {'success': False, 'error_code': 'already_redeemed', 'error': "You've already redeemed this code.", 'amount': None, 'currency_type': None}
+
+        if promo_code.currency_type != 'black_ink':
+            # Placeholder guard until Gold Ink / Quills crediting is built out.
+            return {'success': False, 'error_code': 'unsupported_currency', 'error': "This code type isn't supported yet.", 'amount': None, 'currency_type': None}
+
+        PromoCodeRedemption.objects.create(user=user, promo_code=promo_code)
+
+        promo_code.times_redeemed += 1
+        promo_code.save(update_fields=['times_redeemed', 'updated_at'])
+
+        wallet = UserWallet.objects.select_for_update().get(user=user)
+        wallet.black_ink_balance += promo_code.amount
+        wallet.save(update_fields=['black_ink_balance', 'updated_at'])
+
+        Transaction.objects.create(
+            user=user,
+            transaction_type='promo_code',
+            currency_type='black_ink',
+            amount=promo_code.amount,
+            balance_after=wallet.black_ink_balance,
+            notes=f'Promo code redemption: {promo_code.code}',
+        )
+
+    return {
+        'success': True,
+        'error_code': None,
+        'error': None,
+        'amount': promo_code.amount,
+        'currency_type': promo_code.currency_type,
+    }
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def redeem_promo_code_view(request):
+    
+    #Endpoint for a user to redeem a promo code (e.g. from a book fair
+    #giveaway card). Thin request/response wrapper around the
+    #redeem_promo_code() business logic above -- keeps the logic itself
+    #testable and reusable without a request object.
+    code_input = request.data.get('code')
+    result = redeem_promo_code(request.user, code_input)
+
+    if not result['success']:
+        error_status = (
+            status.HTTP_404_NOT_FOUND
+            if result['error_code'] == 'invalid_code'
+            else status.HTTP_400_BAD_REQUEST
+        )
+        return Response({'error': result['error']}, status=error_status)
+
+    return Response({
+        'amount': result['amount'],
+        'currency_type': result['currency_type'],
+    }, status=status.HTTP_200_OK)

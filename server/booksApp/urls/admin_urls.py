@@ -1,6 +1,8 @@
 from django.urls import path
 from booksApp.views import admin_views
 
+# api/books/admin/
+
 urlpatterns = [
     path('genres/', admin_views.list_genres),
     path('genres/create/', admin_views.create_genre),
