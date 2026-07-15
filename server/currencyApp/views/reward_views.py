@@ -28,27 +28,33 @@ BONUS_REWARDS = {
 
 
 def _get_next_streak_day(last_reward_date, current_streak_day, today):
-    #Return the next day in the repeating 365-day login streak.
+    #Return the next day in the true, unbroken login streak (no wrapping —
+    #this is the actual streak length, used for display/achievements).
     if last_reward_date == today - timedelta(days=1):
-        # Day 365 completes the yearly streak. The following consecutive login
-        # begins a new yearly cycle.
-        if current_streak_day >= SUPER_BONUS_STREAK_DAY:
-            return 1
         return current_streak_day + 1
 
     # A first claim or a missed calendar day starts the streak over.
     return 1
 
+def _get_reward_pattern_day(streak_day):
+    #Map an ever-growing streak day onto its position in the repeating
+    #365-day reward pattern (day 366 behaves like day 1, day 730 like
+    #day 365, etc.) without ever mutating the stored streak itself.
+    return ((streak_day - 1) % SUPER_BONUS_STREAK_DAY) + 1
+
 
 def _get_reward_amount(streak_day, standard_reward):
-    #Return the reward for an absolute streak day.
-    if streak_day == SUPER_BONUS_STREAK_DAY:
+    #Return the reward for an absolute streak day, based on its position
+    #in the repeating 365-day pattern.
+    pattern_day = _get_reward_pattern_day(streak_day)
+
+    if pattern_day == SUPER_BONUS_STREAK_DAY:
         return SUPER_BONUS_REWARD
 
-    if streak_day in YEARLY_MILESTONE_REWARDS:
-        return YEARLY_MILESTONE_REWARDS[streak_day]
+    if pattern_day in YEARLY_MILESTONE_REWARDS:
+        return YEARLY_MILESTONE_REWARDS[pattern_day]
 
-    cycle_day = ((streak_day - 1) % REWARD_CYCLE_LENGTH) + 1
+    cycle_day = ((pattern_day - 1) % REWARD_CYCLE_LENGTH) + 1
     return BONUS_REWARDS.get(cycle_day, standard_reward)
 
 
