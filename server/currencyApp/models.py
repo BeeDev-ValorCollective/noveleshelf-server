@@ -11,6 +11,7 @@ class DailyLoginReward(models.Model):
     )
     last_reward_date = models.DateField(null=True, blank=True)
     total_earned = models.IntegerField(default=0)
+    current_streak_day = models.PositiveSmallIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

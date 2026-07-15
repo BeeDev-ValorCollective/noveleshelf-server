@@ -10,7 +10,7 @@ from .models import (
 
 @admin.register(DailyLoginReward)
 class DailyLoginRewardAdmin(admin.ModelAdmin):
-    list_display = ['user', 'last_reward_date', 'total_earned', 'updated_at']
+    list_display = ['user', 'last_reward_date', 'current_streak_day', 'total_earned', 'updated_at']
     search_fields = ['user__email']
     readonly_fields = ['created_at', 'updated_at']
 

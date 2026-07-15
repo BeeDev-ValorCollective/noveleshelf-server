@@ -14,7 +14,12 @@ class TransactionSerializer(serializers.ModelSerializer):
 class DailyLoginRewardSerializer(serializers.ModelSerializer):
     class Meta:
         model = DailyLoginReward
-        fields = ['last_reward_date', 'total_earned', 'updated_at']
+        fields = [
+            'last_reward_date', 'current_streak_day', 'total_earned', 'updated_at',
+        ]
+        read_only_fields = [
+            'last_reward_date', 'current_streak_day', 'total_earned', 'updated_at',
+        ]
 
 
 class FoundingAuthorBadgeSerializer(serializers.ModelSerializer):
