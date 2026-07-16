@@ -237,19 +237,15 @@ class UserBook(models.Model):
 
 
 class UserReadingProgress(models.Model):
-    UNLOCK_TYPES = [
-        ('free', 'Free'),
-        ('black_ink', 'Black Ink Drop'),
-        ('gold_ink', 'Gold Ink Drop'),
-        ('quills', 'Quills'),
-    ]
-
     user = models.ForeignKey('userApp.User', on_delete=models.CASCADE, related_name='reading_progress')
     book = models.ForeignKey(Book, on_delete=models.CASCADE, related_name='reading_progress')
     chapter = models.ForeignKey(Chapter, on_delete=models.CASCADE, related_name='reading_progress')
     is_unlocked = models.BooleanField(default=False)
     unlocked_at = models.DateTimeField(null=True, blank=True)
-    unlock_currency_type = models.CharField(max_length=20, choices=UNLOCK_TYPES, null=True, blank=True)
+    unlocked_free = models.BooleanField(default=False)
+    black_ink_spent = models.PositiveIntegerField(default=0)
+    gold_ink_spent = models.PositiveIntegerField(default=0)
+    quills_spent = models.PositiveIntegerField(default=0)
     is_read = models.BooleanField(default=False)
     read_at = models.DateTimeField(null=True, blank=True)
 

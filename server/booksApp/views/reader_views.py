@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
+from django.db import transaction
 from django.utils import timezone
 from booksApp.models import Book, BookPage, Chapter, UserBook, UserReadingProgress
 from booksApp.serializers.reader_serializers import (
@@ -294,7 +295,7 @@ def chapter_read(request, chapter_id):
                 chapter=chapter,
                 is_unlocked=True,
                 unlocked_at=timezone.now(),
-                unlock_currency_type='free',
+                unlocked_free=True,
                 is_read=True,
                 read_at=timezone.now(),
             )
@@ -320,17 +321,17 @@ def chapter_unlock(request, chapter_id):
     """
     Deducts currency (black_ink → gold_ink → quills) and unlocks chapter.
     Frontend calls this after user confirms, then calls the read endpoint.
+
+    Locked with select_for_update on both the UserReadingProgress row and
+    the wallet, inside one atomic block -- without this, two near-simultaneous
+    requests (e.g. a double-tap) could both pass the "already unlocked?"
+    check before either commits, resulting in a double-charge.
     """
     chapter = get_object_or_404(
         Chapter.objects.select_related('book'),
         id=chapter_id,
         status='published'
     )
-
-    if UserReadingProgress.objects.filter(
-        user=request.user, chapter=chapter, is_unlocked=True
-    ).exists():
-        return Response({'detail': 'Chapter already unlocked.'}, status=status.HTTP_200_OK)
 
     if chapter.is_free:
         return Response({'detail': 'This chapter is free — use the read endpoint directly.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -339,89 +340,101 @@ def chapter_unlock(request, chapter_id):
     if cost <= 0:
         return Response({'detail': 'Invalid unlock cost on this chapter.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    wallet, _ = UserWallet.objects.get_or_create(user=request.user)
-    total_available = wallet.black_ink_balance + wallet.gold_ink_balance + wallet.quill_balance
-
-    if total_available < cost:
-        return Response(
-            {
-                'detail': 'Insufficient funds.',
-                'wallet': _wallet_summary(request.user),
-                'cost': cost,
-            },
-            status=status.HTTP_402_PAYMENT_REQUIRED
-        )
-
-    remaining = cost
-    black_used = gold_used = quill_used = 0
-
-    if wallet.black_ink_balance > 0 and remaining > 0:
-        use = min(wallet.black_ink_balance, remaining)
-        wallet.black_ink_balance -= use
-        black_used = use
-        remaining -= use
-
-    if wallet.gold_ink_balance > 0 and remaining > 0:
-        use = min(wallet.gold_ink_balance, remaining)
-        wallet.gold_ink_balance -= use
-        gold_used = use
-        remaining -= use
-
-    if wallet.quill_balance > 0 and remaining > 0:
-        use = min(wallet.quill_balance, remaining)
-        wallet.quill_balance -= use
-        quill_used = use
-        remaining -= use
-
-    wallet.save()
-
-    if quill_used > 0 and quill_used >= black_used and quill_used >= gold_used:
-        primary_currency = 'quills'
-    elif gold_used > 0 and gold_used >= black_used:
-        primary_currency = 'gold_ink'
-    else:
-        primary_currency = 'black_ink'
-
-    if black_used > 0:
-        Transaction.objects.create(
+    with transaction.atomic():
+        progress, _ = UserReadingProgress.objects.select_for_update().get_or_create(
             user=request.user,
-            transaction_type='chapter_unlock',
-            currency_type='black_ink',
-            amount=-black_used,
-            balance_after=wallet.black_ink_balance,
-            notes=f'Unlocked chapter {chapter.chapter_number} of "{chapter.book.title}"'
-        )
-    if gold_used > 0:
-        Transaction.objects.create(
-            user=request.user,
-            transaction_type='chapter_unlock',
-            currency_type='gold_ink',
-            amount=-gold_used,
-            balance_after=wallet.gold_ink_balance,
-            notes=f'Unlocked chapter {chapter.chapter_number} of "{chapter.book.title}"'
-        )
-    if quill_used > 0:
-        Transaction.objects.create(
-            user=request.user,
-            transaction_type='chapter_unlock',
-            currency_type='quills',
-            amount=-quill_used,
-            balance_after=wallet.quill_balance,
-            notes=f'Unlocked chapter {chapter.chapter_number} of "{chapter.book.title}"'
+            chapter=chapter,
+            defaults={'book': chapter.book},
         )
 
-    UserReadingProgress.objects.update_or_create(
-        user=request.user,
-        chapter=chapter,
-        defaults={
-            'book': chapter.book,
-            'is_unlocked': True,
-            'unlocked_at': timezone.now(),
-            'unlock_currency_type': primary_currency,
-        }
-    )
+        if progress.is_unlocked:
+            return Response({'detail': 'Chapter already unlocked.'}, status=status.HTTP_200_OK)
 
-    UserBook.objects.get_or_create(user=request.user, book=chapter.book)
+        wallet, _ = UserWallet.objects.select_for_update().get_or_create(user=request.user)
+
+        remaining = cost
+        black_used = gold_used = quill_used = 0
+
+        if wallet.black_ink_balance > 0 and remaining > 0:
+            use = min(wallet.black_ink_balance, remaining)
+            wallet.black_ink_balance -= use
+            black_used = use
+            remaining -= use
+
+        if wallet.gold_ink_balance > 0 and remaining > 0:
+            use = min(wallet.gold_ink_balance, remaining)
+            wallet.gold_ink_balance -= use
+            gold_used = use
+            remaining -= use
+
+        if wallet.quill_balance > 0 and remaining > 0:
+            use = min(wallet.quill_balance, remaining)
+            wallet.quill_balance -= use
+            quill_used = use
+            remaining -= use
+
+        if remaining > 0:
+            # Not enough even after blending all three -- nothing's been
+            # saved yet, so this just returns without touching the wallet.
+            return Response(
+                {
+                    'detail': 'Insufficient funds.',
+                    'wallet': _wallet_summary(request.user),
+                    'cost': cost,
+                },
+                status=status.HTTP_402_PAYMENT_REQUIRED
+            )
+
+        wallet.save(update_fields=['black_ink_balance', 'gold_ink_balance', 'quill_balance', 'updated_at'])
+
+        is_mixed = sum(1 for used in (black_used, gold_used, quill_used) if used > 0) > 1
+        notes_suffix = ' (mixed currency unlock)' if is_mixed else ''
+
+        if black_used > 0:
+            Transaction.objects.create(
+                user=request.user,
+                transaction_type='chapter_unlock',
+                currency_type='black_ink',
+                amount=-black_used,
+                balance_after=wallet.black_ink_balance,
+                notes=f'Unlocked chapter {chapter.chapter_number} of "{chapter.book.title}"{notes_suffix}'
+            )
+        if gold_used > 0:
+            Transaction.objects.create(
+                user=request.user,
+                transaction_type='chapter_unlock',
+                currency_type='gold_ink',
+                amount=-gold_used,
+                balance_after=wallet.gold_ink_balance,
+                notes=f'Unlocked chapter {chapter.chapter_number} of "{chapter.book.title}"{notes_suffix}'
+            )
+        if quill_used > 0:
+            Transaction.objects.create(
+                user=request.user,
+                transaction_type='chapter_unlock',
+                currency_type='quills',
+                amount=-quill_used,
+                balance_after=wallet.quill_balance,
+                notes=f'Unlocked chapter {chapter.chapter_number} of "{chapter.book.title}"{notes_suffix}'
+            )
+
+        progress.book = chapter.book
+        progress.is_unlocked = True
+        progress.unlocked_at = timezone.now()
+        progress.black_ink_spent = black_used
+        progress.gold_ink_spent = gold_used
+        progress.quills_spent = quill_used
+        progress.save(update_fields=[
+            'book', 'is_unlocked', 'unlocked_at',
+            'black_ink_spent', 'gold_ink_spent', 'quills_spent',
+        ])
+
+        UserBook.objects.get_or_create(user=request.user, book=chapter.book)
+
+        # TODO: author payout calculation should be triggered from here --
+        # this is the point where a chapter purchase becomes real money
+        # owed to the author. Not yet built; needs its own design pass
+        # (payout rate, founding author bonus stacking, batching/timing).
 
     return Response({
         'detail': 'Chapter unlocked.',
