@@ -1,6 +1,8 @@
 from django.urls import path
 from . import views
 
+# api/notifications/
+
 urlpatterns = [
     # user endpoints
     path('my-notifications/', views.get_my_notifications),

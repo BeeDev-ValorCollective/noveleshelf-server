@@ -4,14 +4,107 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
+from django.db import transaction
 from django.utils import timezone
-from booksApp.models import Book, Chapter, UserBook, UserReadingProgress
+from booksApp.models import Book, BookPage, Chapter, UserBook, UserReadingProgress
 from booksApp.serializers.reader_serializers import (
     UserBookSerializer, ChapterReadSerializer, ChapterLockedSerializer
 )
 from booksApp.views.public_views import format_book_summary
 from userApp.models import UserWallet
 from currencyApp.models import Transaction
+
+
+# ─── Reading Sequence Assembly ───────────────────────────────────────────────
+
+PAGE_TYPE_LABELS = {
+    'dedication': 'Dedication',
+    'acknowledgements': 'Acknowledgements',
+    'authors_note': "Author's Note",
+    'prologue': 'Prologue',
+    'next_book_teaser': 'Next Book Teaser',
+}
+
+# Fixed reading-order position for each page_type relative to the chapters.
+# 'before' pages appear in this order, ahead of chapter 1.
+# 'after' pages appear in this order, following the final chapter.
+PAGES_BEFORE_CHAPTERS = ['dedication', 'acknowledgements', 'authors_note', 'prologue']
+PAGES_AFTER_CHAPTERS = ['next_book_teaser']
+
+
+def assemble_reading_sequence(book, user):
+    """
+    Returns the full reading order for a book: published BookPages
+    interleaved with published Chapters, per the fixed sequence:
+    Dedication -> Acknowledgements -> Author's Note -> Prologue ->
+    Chapters (in chapter_number order) -> Next Book Teaser.
+
+    Pages have no unlock mechanic (no is_free/unlock_cost) — they're free
+    whenever published, so their content is embedded directly here.
+    Chapters stay metadata-only; content is fetched lazily (and possibly
+    paywalled) via chapter_read/chapter_unlock.
+
+    Each chapter entry is annotated with this user's is_unlocked/is_read
+    progress (read-only lookup — does NOT create or mutate UserReadingProgress,
+    unlike chapter_read) so the frontend can compute a resume point without
+    triggering read/unlock side effects just by checking status.
+    """
+    pages_by_type = {
+        p.page_type: p
+        for p in BookPage.objects.filter(book=book, is_published=True)
+    }
+
+    progress_by_chapter_id = {
+        p.chapter_id: p
+        for p in UserReadingProgress.objects.filter(user=user, book=book)
+    }
+
+    sequence = []
+
+    for page_type in PAGES_BEFORE_CHAPTERS:
+        page = pages_by_type.get(page_type)
+        if page:
+            sequence.append({
+                'type': 'page',
+                'page_type': page.page_type,
+                'title': PAGE_TYPE_LABELS.get(page.page_type, page.page_type),
+                'content': page.content,
+            })
+
+    chapters = Chapter.objects.filter(
+        book=book, status='published'
+    ).order_by('chapter_number')
+
+    for chapter in chapters:
+        progress = progress_by_chapter_id.get(chapter.id)
+        sequence.append({
+            'type': 'chapter',
+            'id': chapter.id,
+            'chapter_number': chapter.chapter_number,
+            'title': chapter.title,
+            'display_title': (
+                f'Chapter {chapter.chapter_number}: {chapter.title}'
+                if chapter.title else f'Chapter {chapter.chapter_number}'
+            ),
+            'is_free': chapter.is_free,
+            'unlock_cost': chapter.unlock_cost,
+            'is_final': chapter.is_final,
+            'word_count': chapter.word_count,
+            'is_unlocked': bool(progress and progress.is_unlocked),
+            'is_read': bool(progress and progress.is_read),
+        })
+
+    for page_type in PAGES_AFTER_CHAPTERS:
+        page = pages_by_type.get(page_type)
+        if page:
+            sequence.append({
+                'type': 'page',
+                'page_type': page.page_type,
+                'title': PAGE_TYPE_LABELS.get(page.page_type, page.page_type),
+                'content': page.content,
+            })
+
+    return sequence
 
 
 # ─── Library ────────────────────────────────────────────────────────────────
@@ -66,7 +159,8 @@ def my_library_remove_book(request, book_id):
 def my_library_book_detail(request, book_id):
     """
     Reader-scoped book detail: same base data as the public detail view,
-    plus shelf status and this reader's progress on the book (if any).
+    plus shelf status, this reader's progress on the book (if any), and
+    the full assembled reading_sequence (pages + chapters, in order).
     """
     book = get_object_or_404(
         Book.objects.select_related(
@@ -107,6 +201,18 @@ def my_library_book_detail(request, book_id):
     data['description'] = book.description or ''
     data['description_truncated'] = False
     data['chapters'] = chapters_data
+    reading_sequence = assemble_reading_sequence(book, request.user)
+    data['reading_sequence'] = reading_sequence
+
+    # resume_index: position of the LAST is_read chapter in the sequence,
+    # so the reading screen can land the reader back where they left off
+    # rather than jumping ahead to the next unread chapter. 0 (very start,
+    # including any lead-in pages) if nothing's been read yet.
+    resume_index = 0
+    for i, item in enumerate(reading_sequence):
+        if item['type'] == 'chapter' and item['is_read']:
+            resume_index = i
+    data['resume_index'] = resume_index
 
     user_book = UserBook.objects.filter(user=request.user, book=book).first()
     data['in_shelf'] = user_book is not None
@@ -116,11 +222,45 @@ def my_library_book_detail(request, book_id):
             'is_completed': user_book.is_completed,
             'completed_at': user_book.completed_at,
             'last_read_at': user_book.last_read_at,
+            'auto_unlock_chapters': user_book.auto_unlock_chapters,
+            'auto_unlock_prompted': user_book.auto_unlock_prompted,
         }
         if user_book else None
     )
 
     return Response(data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def set_auto_unlock_preference(request, book_id):
+    """
+    Sets this reader's auto-unlock preference for a specific book — asked
+    once, the first time they hit a locked chapter in that book. Creates
+    the UserBook row if it doesn't exist yet (shouldn't normally happen,
+    since reaching a locked chapter implies they're already reading the
+    book, but this keeps the endpoint safe to call regardless).
+
+    Body: { "enabled": true }
+    """
+    book = get_object_or_404(Book, id=book_id)
+    enabled = request.data.get('enabled')
+
+    if enabled is None:
+        return Response(
+            {'error': 'enabled is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    user_book, _ = UserBook.objects.get_or_create(user=request.user, book=book)
+    user_book.auto_unlock_chapters = bool(enabled)
+    user_book.auto_unlock_prompted = True
+    user_book.save(update_fields=['auto_unlock_chapters', 'auto_unlock_prompted'])
+
+    return Response({
+        'auto_unlock_chapters': user_book.auto_unlock_chapters,
+        'auto_unlock_prompted': user_book.auto_unlock_prompted,
+    })
 
 
 # ─── Chapter Read + Unlock ───────────────────────────────────────────────────
@@ -155,7 +295,7 @@ def chapter_read(request, chapter_id):
                 chapter=chapter,
                 is_unlocked=True,
                 unlocked_at=timezone.now(),
-                unlock_currency_type='free',
+                unlocked_free=True,
                 is_read=True,
                 read_at=timezone.now(),
             )
@@ -181,17 +321,17 @@ def chapter_unlock(request, chapter_id):
     """
     Deducts currency (black_ink → gold_ink → quills) and unlocks chapter.
     Frontend calls this after user confirms, then calls the read endpoint.
+
+    Locked with select_for_update on both the UserReadingProgress row and
+    the wallet, inside one atomic block -- without this, two near-simultaneous
+    requests (e.g. a double-tap) could both pass the "already unlocked?"
+    check before either commits, resulting in a double-charge.
     """
     chapter = get_object_or_404(
         Chapter.objects.select_related('book'),
         id=chapter_id,
         status='published'
     )
-
-    if UserReadingProgress.objects.filter(
-        user=request.user, chapter=chapter, is_unlocked=True
-    ).exists():
-        return Response({'detail': 'Chapter already unlocked.'}, status=status.HTTP_200_OK)
 
     if chapter.is_free:
         return Response({'detail': 'This chapter is free — use the read endpoint directly.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -200,89 +340,101 @@ def chapter_unlock(request, chapter_id):
     if cost <= 0:
         return Response({'detail': 'Invalid unlock cost on this chapter.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    wallet, _ = UserWallet.objects.get_or_create(user=request.user)
-    total_available = wallet.black_ink_balance + wallet.gold_ink_balance + wallet.quill_balance
-
-    if total_available < cost:
-        return Response(
-            {
-                'detail': 'Insufficient funds.',
-                'wallet': _wallet_summary(request.user),
-                'cost': cost,
-            },
-            status=status.HTTP_402_PAYMENT_REQUIRED
-        )
-
-    remaining = cost
-    black_used = gold_used = quill_used = 0
-
-    if wallet.black_ink_balance > 0 and remaining > 0:
-        use = min(wallet.black_ink_balance, remaining)
-        wallet.black_ink_balance -= use
-        black_used = use
-        remaining -= use
-
-    if wallet.gold_ink_balance > 0 and remaining > 0:
-        use = min(wallet.gold_ink_balance, remaining)
-        wallet.gold_ink_balance -= use
-        gold_used = use
-        remaining -= use
-
-    if wallet.quill_balance > 0 and remaining > 0:
-        use = min(wallet.quill_balance, remaining)
-        wallet.quill_balance -= use
-        quill_used = use
-        remaining -= use
-
-    wallet.save()
-
-    if quill_used > 0 and quill_used >= black_used and quill_used >= gold_used:
-        primary_currency = 'quills'
-    elif gold_used > 0 and gold_used >= black_used:
-        primary_currency = 'gold_ink'
-    else:
-        primary_currency = 'black_ink'
-
-    if black_used > 0:
-        Transaction.objects.create(
+    with transaction.atomic():
+        progress, _ = UserReadingProgress.objects.select_for_update().get_or_create(
             user=request.user,
-            transaction_type='chapter_unlock',
-            currency_type='black_ink',
-            amount=-black_used,
-            balance_after=wallet.black_ink_balance,
-            notes=f'Unlocked chapter {chapter.chapter_number} of "{chapter.book.title}"'
-        )
-    if gold_used > 0:
-        Transaction.objects.create(
-            user=request.user,
-            transaction_type='chapter_unlock',
-            currency_type='gold_ink',
-            amount=-gold_used,
-            balance_after=wallet.gold_ink_balance,
-            notes=f'Unlocked chapter {chapter.chapter_number} of "{chapter.book.title}"'
-        )
-    if quill_used > 0:
-        Transaction.objects.create(
-            user=request.user,
-            transaction_type='chapter_unlock',
-            currency_type='quills',
-            amount=-quill_used,
-            balance_after=wallet.quill_balance,
-            notes=f'Unlocked chapter {chapter.chapter_number} of "{chapter.book.title}"'
+            chapter=chapter,
+            defaults={'book': chapter.book},
         )
 
-    UserReadingProgress.objects.update_or_create(
-        user=request.user,
-        chapter=chapter,
-        defaults={
-            'book': chapter.book,
-            'is_unlocked': True,
-            'unlocked_at': timezone.now(),
-            'unlock_currency_type': primary_currency,
-        }
-    )
+        if progress.is_unlocked:
+            return Response({'detail': 'Chapter already unlocked.'}, status=status.HTTP_200_OK)
 
-    UserBook.objects.get_or_create(user=request.user, book=chapter.book)
+        wallet, _ = UserWallet.objects.select_for_update().get_or_create(user=request.user)
+
+        remaining = cost
+        black_used = gold_used = quill_used = 0
+
+        if wallet.black_ink_balance > 0 and remaining > 0:
+            use = min(wallet.black_ink_balance, remaining)
+            wallet.black_ink_balance -= use
+            black_used = use
+            remaining -= use
+
+        if wallet.gold_ink_balance > 0 and remaining > 0:
+            use = min(wallet.gold_ink_balance, remaining)
+            wallet.gold_ink_balance -= use
+            gold_used = use
+            remaining -= use
+
+        if wallet.quill_balance > 0 and remaining > 0:
+            use = min(wallet.quill_balance, remaining)
+            wallet.quill_balance -= use
+            quill_used = use
+            remaining -= use
+
+        if remaining > 0:
+            # Not enough even after blending all three -- nothing's been
+            # saved yet, so this just returns without touching the wallet.
+            return Response(
+                {
+                    'detail': 'Insufficient funds.',
+                    'wallet': _wallet_summary(request.user),
+                    'cost': cost,
+                },
+                status=status.HTTP_402_PAYMENT_REQUIRED
+            )
+
+        wallet.save(update_fields=['black_ink_balance', 'gold_ink_balance', 'quill_balance', 'updated_at'])
+
+        is_mixed = sum(1 for used in (black_used, gold_used, quill_used) if used > 0) > 1
+        notes_suffix = ' (mixed currency unlock)' if is_mixed else ''
+
+        if black_used > 0:
+            Transaction.objects.create(
+                user=request.user,
+                transaction_type='chapter_unlock',
+                currency_type='black_ink',
+                amount=-black_used,
+                balance_after=wallet.black_ink_balance,
+                notes=f'Unlocked chapter {chapter.chapter_number} of "{chapter.book.title}"{notes_suffix}'
+            )
+        if gold_used > 0:
+            Transaction.objects.create(
+                user=request.user,
+                transaction_type='chapter_unlock',
+                currency_type='gold_ink',
+                amount=-gold_used,
+                balance_after=wallet.gold_ink_balance,
+                notes=f'Unlocked chapter {chapter.chapter_number} of "{chapter.book.title}"{notes_suffix}'
+            )
+        if quill_used > 0:
+            Transaction.objects.create(
+                user=request.user,
+                transaction_type='chapter_unlock',
+                currency_type='quills',
+                amount=-quill_used,
+                balance_after=wallet.quill_balance,
+                notes=f'Unlocked chapter {chapter.chapter_number} of "{chapter.book.title}"{notes_suffix}'
+            )
+
+        progress.book = chapter.book
+        progress.is_unlocked = True
+        progress.unlocked_at = timezone.now()
+        progress.black_ink_spent = black_used
+        progress.gold_ink_spent = gold_used
+        progress.quills_spent = quill_used
+        progress.save(update_fields=[
+            'book', 'is_unlocked', 'unlocked_at',
+            'black_ink_spent', 'gold_ink_spent', 'quills_spent',
+        ])
+
+        UserBook.objects.get_or_create(user=request.user, book=chapter.book)
+
+        # TODO: author payout calculation should be triggered from here --
+        # this is the point where a chapter purchase becomes real money
+        # owed to the author. Not yet built; needs its own design pass
+        # (payout rate, founding author bonus stacking, batching/timing).
 
     return Response({
         'detail': 'Chapter unlocked.',
