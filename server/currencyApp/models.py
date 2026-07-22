@@ -56,6 +56,42 @@ class Transaction(models.Model):
 
     def __str__(self):
         return f'{self.user.email} — {self.transaction_type} — {self.amount} {self.currency_type}'
+
+class QuillBundle(models.Model):
+    """
+    A purchasable Quills package, bought via Stripe Checkout. Admin-editable
+    so the client can add/retire/reprice bundles without a deploy.
+
+    `quills` is the exact amount credited to the wallet on purchase — any
+    bonus is already baked into this number (confirmed against the client's
+    pricing sheet: e.g. Reader's Choice's 550 = 500 base + 10% bonus).
+    `bonus_percent` and `total_value_cents` are display-only, used to show
+    "10% bonus!" messaging on the purchase screen — never used in the
+    credit calculation itself.
+    """
+    name = models.CharField(max_length=100)
+    quills = models.PositiveIntegerField()
+    price_cents = models.PositiveIntegerField()
+    bonus_percent = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text='Display only — the Quills bonus is already baked into the quills field.',
+    )
+    total_value_cents = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text='Display only — the "value" shown on the purchase screen.',
+    )
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['sort_order', 'quills']
+        verbose_name = 'Quill Bundle'
+        verbose_name_plural = 'Quill Bundles'
+
+    def __str__(self):
+        return f'{self.name} — {self.quills} Quills — ${self.price_cents/100:.2f}'
     
 class PlatformSettings(models.Model):
     daily_black_ink_reward = models.IntegerField(default=2)
@@ -313,3 +349,41 @@ class FoundingAuthorEligibleBook(models.Model):
                     f'Slot #{self.slot.slot_number} is limited to {limit} book(s) '
                     f'({current_count} already assigned).'
                 )
+
+class QuillPurchase(models.Model):
+    """
+    One Stripe Checkout purchase of a QuillBundle. Linked 1:1 to the
+    Transaction that actually credited the wallet, so Transaction stays
+    currency/source-agnostic while this model holds everything
+    Stripe-specific for reconciliation, support, and refunds.
+    """
+    user = models.ForeignKey(
+        'userApp.User', on_delete=models.CASCADE, related_name='quill_purchases'
+    )
+    quill_bundle = models.ForeignKey(
+        QuillBundle, on_delete=models.PROTECT, related_name='purchases'
+    )
+    transaction = models.OneToOneField(
+        Transaction, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='quill_purchase'
+    )
+    stripe_checkout_session_id = models.CharField(max_length=255, unique=True, db_index=True)
+    stripe_payment_intent_id = models.CharField(max_length=255, blank=True)
+    stripe_event_id = models.CharField(max_length=255, unique=True, db_index=True)
+    amount_paid_cents = models.PositiveIntegerField()
+    currency = models.CharField(max_length=10, default='usd')
+    status = models.CharField(
+        max_length=20,
+        choices=[('pending', 'Pending'), ('completed', 'Completed'), ('refunded', 'Refunded')],
+        default='pending',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Quill Purchase'
+        verbose_name_plural = 'Quill Purchases'
+
+    def __str__(self):
+        return f'{self.user.email} — {self.quill_bundle.name} — {self.status}'

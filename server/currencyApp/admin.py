@@ -5,7 +5,7 @@ from .models import (
     DailyLoginReward, Transaction, PlatformSettings,
     PromoCode, PromoCodeRedemption,
     FoundingAuthorBonusTier, FoundingAuthorDuration,
-    FoundingAuthorSlot, FoundingAuthorEligibleBook,
+    FoundingAuthorSlot, FoundingAuthorEligibleBook, QuillBundle, QuillPurchase
 )
 
 
@@ -22,6 +22,12 @@ class TransactionAdmin(admin.ModelAdmin):
     search_fields = ['user__email']
     list_filter = ['transaction_type', 'currency_type']
     readonly_fields = ['created_at']
+
+@admin.register(QuillBundle)
+class QuillBundleAdmin(admin.ModelAdmin):
+    list_display = ('name', 'quills', 'price_cents', 'bonus_percent', 'is_active', 'sort_order')
+    list_editable = ('is_active', 'sort_order')
+    ordering = ('sort_order', 'quills')
 
 
 @admin.register(PlatformSettings)
@@ -189,3 +195,10 @@ class FoundingAuthorSlotAdmin(admin.ModelAdmin):
             obj.author_profile.is_founding_author = False
             obj.author_profile.save(update_fields=['is_founding_author'])
         super().delete_model(request, obj)
+
+@admin.register(QuillPurchase)
+class QuillPurchaseAdmin(admin.ModelAdmin):
+    list_display = ('user', 'quill_bundle', 'amount_paid_cents', 'status', 'created_at')
+    list_filter = ('status', 'quill_bundle')
+    search_fields = ('user__email', 'stripe_checkout_session_id', 'stripe_payment_intent_id')
+    readonly_fields = [f.name for f in QuillPurchase._meta.fields]
