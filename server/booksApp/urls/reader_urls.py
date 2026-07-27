@@ -1,7 +1,7 @@
 from django.urls import path
 from booksApp.views.reader_views import (
     my_library, my_library_remove_book, my_library_book_detail,
-    chapter_read, chapter_unlock, set_auto_unlock_preference
+    chapter_read, chapter_unlock, set_auto_unlock_preference, reader_stats
 )
 
 # api/books/reader/
@@ -16,4 +16,7 @@ urlpatterns = [
     # Reader - Chapters
     path('chapters/<int:chapter_id>/read/', chapter_read, name='chapter-read'),
     path('chapters/<int:chapter_id>/unlock/', chapter_unlock, name='chapter-unlock'),
+
+    # Reader - Stats
+    path('stats/', reader_stats, name='reader-stats'),
 ]
