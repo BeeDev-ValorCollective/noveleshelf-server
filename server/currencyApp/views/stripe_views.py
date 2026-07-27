@@ -7,9 +7,10 @@ from rest_framework.response import Response
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+from urllib.parse import quote
 
 from currencyApp.views.reward_views import credit_quill_purchase
-from currencyApp.models import QuillBundle
+from currencyApp.models import QuillBundle, QuillPurchase
 from currencyApp.serializers import QuillBundleSerializer
 
 stripe.api_key = settings.STRIPE_RESTRICTED_KEY
@@ -26,6 +27,7 @@ def list_quill_bundles(request):
 @permission_classes([IsAuthenticated])
 def create_quill_checkout(request):
     bundle_id = request.data.get('bundle_id')
+    return_path = request.data.get('return_path', '')
 
     if not bundle_id:
         return Response({'error': 'bundle_id is required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -34,6 +36,10 @@ def create_quill_checkout(request):
         bundle = QuillBundle.objects.get(id=bundle_id, is_active=True)
     except QuillBundle.DoesNotExist:
         return Response({'error': 'Quill bundle not found or inactive'}, status=status.HTTP_404_NOT_FOUND)
+
+    success_url = f'{settings.FRONTEND_URL}/purchase-complete?session_id={{CHECKOUT_SESSION_ID}}'
+    if return_path:
+        success_url += f'&return_path={quote(return_path)}'
 
     try:
         session = stripe.checkout.Session.create(
@@ -50,7 +56,7 @@ def create_quill_checkout(request):
                 'user_id': str(request.user.id),
                 'quill_bundle_id': str(bundle.id),
             },
-            success_url=f'{settings.FRONTEND_URL}/purchase-complete?session_id={{CHECKOUT_SESSION_ID}}',
+            success_url=success_url,
             cancel_url=f'{settings.FRONTEND_URL}/purchase-quills',
         )
     except stripe.error.StripeError as e:
@@ -98,3 +104,18 @@ def stripe_webhook(request):
     # Always acknowledge receipt -- even on our own internal failures,
     # so Stripe doesn't keep retrying an event we can never fulfill.
     return JsonResponse({'received': True})
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def check_quill_purchase_status(request):
+    session_id = request.query_params.get('session_id')
+    if not session_id:
+        return Response({'error': 'session_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    purchase = QuillPurchase.objects.filter(
+        stripe_checkout_session_id=session_id, user=request.user
+    ).first()
+
+    if purchase and purchase.status == 'completed':
+        return Response({'completed': True})
+    return Response({'completed': False})
