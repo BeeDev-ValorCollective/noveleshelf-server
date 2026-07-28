@@ -1,4 +1,5 @@
 # statsApp/utils.py
+from datetime import timedelta
 from django.db import models as db_models
 from django.utils import timezone
 from .models import DailyActivity, Event
@@ -36,3 +37,31 @@ def log_event(user, event_type, platform='unknown', **metadata):
         platform=platform,
         metadata=metadata or None,
     )
+
+def get_reading_streak(user):
+    """
+    Consecutive-day reading streak, derived from DailyActivity 'read' rows
+    across all platforms. Counts backward from today (or yesterday, if
+    today's chapter hasn't been read yet) until a gap is found.
+    """
+    dates = set(
+        DailyActivity.objects
+        .filter(user=user, activity_type='read')
+        .values_list('date', flat=True)
+    )
+
+    if not dates:
+        return 0
+
+    today = timezone.localdate()
+    check_date = today if today in dates else today - timedelta(days=1)
+
+    if check_date not in dates:
+        return 0
+
+    streak = 0
+    while check_date in dates:
+        streak += 1
+        check_date -= timedelta(days=1)
+
+    return streak

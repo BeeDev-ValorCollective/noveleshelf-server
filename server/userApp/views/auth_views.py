@@ -6,15 +6,18 @@ from rest_framework_simplejwt.tokens import RefreshToken, OutstandingToken, Blac
 from django.contrib.auth import get_user_model
 from ..serializers import RegisterSerializer, UserSerializer
 from utils.email_utils import send_verification_email, send_password_reset_email, send_notification
-from userApp.models import EmailVerificationToken, PasswordResetToken
+from userApp.models import EmailVerificationToken, PasswordResetToken, AuthHandoffToken
 from currencyApp.views.reward_views import process_daily_login_reward
 from statsApp.utils import record_daily_activity
 from statsApp.utils import record_daily_activity
 from django.utils import timezone
-from ..models import EmailVerificationToken
 import threading
+import secrets
+from datetime import timedelta
 
 User = get_user_model()
+
+HANDOFF_TOKEN_TTL_SECONDS = 90
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -281,4 +284,54 @@ def reset_password(request):
 
     return Response({
         'message': 'Password reset successfully. Please log in with your new password.'
+    })
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_handoff_token(request):
+    # Invalidate any earlier unused tokens for this user first, same
+    # pattern as resend_verification/forgot_password -- avoids a stale
+    # token from an abandoned handoff attempt still being valid.
+    AuthHandoffToken.objects.filter(user=request.user, is_used=False).update(is_used=True)
+
+    token = secrets.token_urlsafe(32)
+    AuthHandoffToken.objects.create(
+        user=request.user,
+        token=token,
+        expires_at=timezone.now() + timedelta(seconds=HANDOFF_TOKEN_TTL_SECONDS),
+    )
+
+    return Response({'handoff_token': token}, status=status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def exchange_handoff_token(request):
+    token = request.data.get('token')
+
+    if not token:
+        return Response({'error': 'Token is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        handoff = AuthHandoffToken.objects.get(token=token, is_used=False)
+    except AuthHandoffToken.DoesNotExist:
+        return Response({'error': 'Invalid or expired token'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if handoff.expires_at < timezone.now():
+        return Response({'error': 'Token has expired'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Mark used immediately -- single-use, can't be replayed even if
+    # something retries this request.
+    handoff.is_used = True
+    handoff.save(update_fields=['is_used'])
+
+    user = handoff.user
+    refresh = RefreshToken.for_user(user)
+
+    return Response({
+        'user': UserSerializer(user).data,
+        'tokens': {
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+        },
     })

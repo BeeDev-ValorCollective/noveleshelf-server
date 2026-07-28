@@ -9,7 +9,7 @@ from rest_framework.response import Response
 
 from currencyApp.models import (
     DailyLoginReward, PlatformSettings, Transaction,
-    PromoCode, PromoCodeRedemption,
+    PromoCode, PromoCodeRedemption, QuillBundle, QuillPurchase,
 )
 from userApp.models import UserWallet
 
@@ -225,3 +225,50 @@ def redeem_promo_code_view(request):
         'amount': result['amount'],
         'currency_type': result['currency_type'],
     }, status=status.HTTP_200_OK)
+
+
+def credit_quill_purchase(user, quill_bundle_id, stripe_session_id, stripe_event_id, stripe_payment_intent_id, amount_paid_cents, currency='usd'):
+    
+    #Credits a user's Quills wallet after a Stripe checkout.session.completed
+    #webhook confirms payment. Idempotent -- safe to call more than once with
+    #the same stripe_event_id, since Stripe can and will redeliver webhooks.
+
+    #Returns a dict: {'success': bool, 'error_code': str or None,
+    #'error': str or None, 'quill_purchase': QuillPurchase or None}.
+    
+    existing = QuillPurchase.objects.filter(stripe_event_id=stripe_event_id).first()
+    if existing:
+        return {'success': True, 'error_code': None, 'error': None, 'quill_purchase': existing}
+
+    with transaction.atomic():
+        try:
+            bundle = QuillBundle.objects.get(id=quill_bundle_id, is_active=True)
+        except QuillBundle.DoesNotExist:
+            return {'success': False, 'error_code': 'invalid_bundle', 'error': 'Quill bundle not found or inactive.', 'quill_purchase': None}
+
+        wallet = UserWallet.objects.select_for_update().get(user=user)
+        wallet.quill_balance += bundle.quills
+        wallet.save(update_fields=['quill_balance', 'updated_at'])
+
+        txn = Transaction.objects.create(
+            user=user,
+            transaction_type='quill_purchase',
+            currency_type='quills',
+            amount=bundle.quills,
+            balance_after=wallet.quill_balance,
+            notes=f'Stripe purchase: {bundle.name}',
+        )
+
+        purchase = QuillPurchase.objects.create(
+            user=user,
+            quill_bundle=bundle,
+            transaction=txn,
+            stripe_checkout_session_id=stripe_session_id,
+            stripe_payment_intent_id=stripe_payment_intent_id,
+            stripe_event_id=stripe_event_id,
+            amount_paid_cents=amount_paid_cents,
+            currency=currency,
+            status='completed',
+        )
+
+    return {'success': True, 'error_code': None, 'error': None, 'quill_purchase': purchase}

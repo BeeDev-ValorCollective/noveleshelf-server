@@ -13,6 +13,7 @@ from booksApp.serializers.reader_serializers import (
 from booksApp.views.public_views import format_book_summary
 from userApp.models import UserWallet
 from currencyApp.models import Transaction
+from statsApp.utils import record_daily_activity
 
 
 # ─── Reading Sequence Assembly ───────────────────────────────────────────────
@@ -288,6 +289,7 @@ def chapter_read(request, chapter_id):
                 progress.is_read = True
                 progress.read_at = timezone.now()
                 progress.save(update_fields=['is_read', 'read_at'])
+            record_daily_activity(request.user, 'read', platform=request.headers.get('X-Client-Platform', 'unknown'))
         else:
             UserReadingProgress.objects.create(
                 user=request.user,
@@ -300,6 +302,7 @@ def chapter_read(request, chapter_id):
                 read_at=timezone.now(),
             )
             UserBook.objects.get_or_create(user=request.user, book=chapter.book)
+            record_daily_activity(request.user, 'read', platform=request.headers.get('X-Client-Platform', 'unknown'))
 
         serializer = ChapterReadSerializer(chapter)
         return Response(serializer.data)
@@ -449,6 +452,24 @@ def chapter_unlock(request, chapter_id):
             'black_ink_balance': wallet.black_ink_balance,
         }
     }, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def reader_stats(request):
+    from statsApp.utils import get_reading_streak
+    from currencyApp.models import DailyLoginReward
+
+    books_read = UserBook.objects.filter(user=request.user, is_completed=True).count()
+    reading_streak = get_reading_streak(request.user)
+
+    login_reward = DailyLoginReward.objects.filter(user=request.user).first()
+    login_streak = login_reward.current_streak_day if login_reward else 0
+
+    return Response({
+        'books_read': books_read,
+        'reading_streak': reading_streak,
+        'login_streak': login_streak,
+    })
 
 
 # ─── Helper ──────────────────────────────────────────────────────────────────

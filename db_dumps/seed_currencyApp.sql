@@ -72,3 +72,17 @@ FROM (
     SELECT 40, 5.00,  'First 3 Books'
 ) AS r
 ON DUPLICATE KEY UPDATE slot_number=slot_number;
+
+-- Seed data for currencyApp_quillbundle
+-- price_cents / total_value_cents are stored in cents (matches Stripe's
+-- unit_amount convention). bonus_percent and total_value_cents are
+-- display-only -- the `quills` column already has the bonus baked in.
+
+INSERT INTO currencyApp_quillbundle
+    (name, quills, price_cents, bonus_percent, total_value_cents, is_active, sort_order, created_at, updated_at)
+VALUES
+    ('Starter Pack',      100,  99,   NULL,  100,  1, 1, NOW(), NOW()),
+    ('Reader''s Choice',  550,  499,  10.00, 550,  1, 2, NOW(), NOW()),
+    ('Story Lover',       1200, 999,  20.00, 1200, 1, 3, NOW(), NOW()),
+    ('Pro Reader',        2500, 1999, 25.00, 2500, 1, 4, NOW(), NOW()),
+    ('Collector''s Quills', 6500, 4999, 30.00, 6500, 1, 5, NOW(), NOW());

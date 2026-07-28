@@ -14,4 +14,6 @@ urlpatterns = [
     path('resend-verification/', auth_views.resend_verification),
     path('forgot-password/', auth_views.forgot_password),
     path('reset-password/', auth_views.reset_password),
+    path('create-handoff-token/', auth_views.create_handoff_token),
+    path('exchange-handoff-token/', auth_views.exchange_handoff_token),
 ]

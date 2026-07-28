@@ -5,6 +5,9 @@ from currencyApp.views.admin_views import (
     admin_create_promo_code, admin_update_promo_code, admin_list_promo_codes,
 )
 from currencyApp.views.reward_views import redeem_promo_code_view
+from currencyApp.views.stripe_views import (
+    list_quill_bundles, create_quill_checkout, stripe_webhook, check_quill_purchase_status,
+)
 
 # api/currency/
 
@@ -15,4 +18,8 @@ urlpatterns = [
     path('promo/admin/create/', admin_create_promo_code, name='admin-create-promo-code'),
     path('promo/admin/<str:code>/update/', admin_update_promo_code, name='admin-update-promo-code'),
     path('promo/admin/list/', admin_list_promo_codes, name='admin-list-promo-codes'),
+    path('quills/bundles/', list_quill_bundles, name='list-quill-bundles'),
+    path('quills/checkout/create/', create_quill_checkout, name='create-quill-checkout'),
+    path('quills/webhook/', stripe_webhook, name='stripe-webhook'),
+    path('quills/checkout/status/', check_quill_purchase_status, name='check-quill-purchase-status'),
 ]
