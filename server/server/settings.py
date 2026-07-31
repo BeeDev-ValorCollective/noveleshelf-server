@@ -33,6 +33,7 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+    'x-client-platform',
 ]
 
 CORS_ALLOW_METHODS = [
@@ -178,8 +179,15 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = env('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default=env('BACKUP_FROM_EMAIL'))
-FRONTEND_URL = env('FRONTEND_URL', default='http://localhost:5173')
 BCC_EMAIL = env('BCC_EMAIL', default=env('BACKUP_FROM_EMAIL'))
+
+# URLs
+FRONTEND_URL = env('FRONTEND_URL', default='http://localhost:5173')
+EXPO_APP_URL = env('EXPO_APP_URL', default='http://localhost:8081')
+
+# Stripe
+STRIPE_RESTRICTED_KEY = env('STRIPE_RESTRICTED_KEY')
+STRIPE_WEBHOOK_SECRET = env('STRIPE_WEBHOOK_SECRET')
 
 LOGGING = {
     'version': 1,

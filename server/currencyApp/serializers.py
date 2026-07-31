@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import DailyLoginReward, Transaction, FoundingAuthorSlot
+from .models import DailyLoginReward, Transaction, FoundingAuthorSlot, QuillBundle, QuillPurchase
 
 
 class TransactionSerializer(serializers.ModelSerializer):
@@ -14,7 +14,17 @@ class TransactionSerializer(serializers.ModelSerializer):
 class DailyLoginRewardSerializer(serializers.ModelSerializer):
     class Meta:
         model = DailyLoginReward
-        fields = ['last_reward_date', 'total_earned', 'updated_at']
+        fields = [
+            'last_reward_date', 'current_streak_day', 'total_earned', 'updated_at',
+        ]
+        read_only_fields = [
+            'last_reward_date', 'current_streak_day', 'total_earned', 'updated_at',
+        ]
+
+class QuillBundleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = QuillBundle
+        fields = ['id', 'name', 'quills', 'price_cents', 'bonus_percent', 'total_value_cents']
 
 
 class FoundingAuthorBadgeSerializer(serializers.ModelSerializer):
@@ -35,3 +45,10 @@ class FoundingAuthorBadgeSerializer(serializers.ModelSerializer):
     class Meta:
         model = FoundingAuthorSlot
         fields = ['bonus_percent', 'duration_label']
+
+class QuillPurchaseSerializer(serializers.ModelSerializer):
+    bundle_name = serializers.CharField(source='quill_bundle.name', read_only=True)
+
+    class Meta:
+        model = QuillPurchase
+        fields = ['id', 'bundle_name', 'amount_paid_cents', 'currency', 'status', 'created_at']

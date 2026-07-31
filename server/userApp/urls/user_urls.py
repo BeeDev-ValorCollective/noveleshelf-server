@@ -1,6 +1,8 @@
 from django.urls import path
 from userApp.views import user_views
 
+# api/user/
+
 urlpatterns = [
     path('profile/update/', user_views.update_profile),
     path('default-role/update/', user_views.update_default_role),

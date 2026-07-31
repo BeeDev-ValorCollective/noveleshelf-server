@@ -1,6 +1,8 @@
 from django.urls import path
 from booksApp.views import author_views
 
+# api/books/author/
+
 urlpatterns = [
     # Books
     path('books/create/', author_views.create_book),

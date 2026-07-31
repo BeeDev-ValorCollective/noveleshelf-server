@@ -1,6 +1,14 @@
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 from django.core.exceptions import ValidationError
+
+
+CURRENCY_TYPES = [
+    ('black_ink', 'Black Ink Drop'),
+    ('gold_ink', 'Gold Ink Drop'),
+    ('quills', 'Quills'),
+]
 
 
 class DailyLoginReward(models.Model):
@@ -11,6 +19,7 @@ class DailyLoginReward(models.Model):
     )
     last_reward_date = models.DateField(null=True, blank=True)
     total_earned = models.IntegerField(default=0)
+    current_streak_day = models.PositiveSmallIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -27,12 +36,7 @@ class Transaction(models.Model):
         ('author_payout', 'Author Payout'),
         ('admin_adjustment', 'Admin Adjustment'),
         ('admin_gift', 'Admin Gift'),
-    ]
-
-    CURRENCY_TYPES = [
-        ('black_ink', 'Black Ink Drop'),
-        ('gold_ink', 'Gold Ink Drop'),
-        ('quills', 'Quills'),
+        ('promo_code', 'Promo Code Redemption'),
     ]
 
     user = models.ForeignKey(
@@ -52,6 +56,42 @@ class Transaction(models.Model):
 
     def __str__(self):
         return f'{self.user.email} — {self.transaction_type} — {self.amount} {self.currency_type}'
+
+class QuillBundle(models.Model):
+    """
+    A purchasable Quills package, bought via Stripe Checkout. Admin-editable
+    so the client can add/retire/reprice bundles without a deploy.
+
+    `quills` is the exact amount credited to the wallet on purchase — any
+    bonus is already baked into this number (confirmed against the client's
+    pricing sheet: e.g. Reader's Choice's 550 = 500 base + 10% bonus).
+    `bonus_percent` and `total_value_cents` are display-only, used to show
+    "10% bonus!" messaging on the purchase screen — never used in the
+    credit calculation itself.
+    """
+    name = models.CharField(max_length=100)
+    quills = models.PositiveIntegerField()
+    price_cents = models.PositiveIntegerField()
+    bonus_percent = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text='Display only — the Quills bonus is already baked into the quills field.',
+    )
+    total_value_cents = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text='Display only — the "value" shown on the purchase screen.',
+    )
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['sort_order', 'quills']
+        verbose_name = 'Quill Bundle'
+        verbose_name_plural = 'Quill Bundles'
+
+    def __str__(self):
+        return f'{self.name} — {self.quills} Quills — ${self.price_cents/100:.2f}'
     
 class PlatformSettings(models.Model):
     daily_black_ink_reward = models.IntegerField(default=2)
@@ -63,6 +103,97 @@ class PlatformSettings(models.Model):
 
     def __str__(self):
         return 'Platform Settings'
+
+
+class PromoCode(models.Model):
+    """
+    A redeemable code that credits a user's wallet with a currency amount.
+    Built for the book-fair giveaway use case — a single code distributed
+    widely (social media, printed cards) that each user can only redeem once.
+
+    Only black_ink crediting is implemented in the redemption view for now
+    (per client request, to avoid touching purchased/earned Quills or Gold
+    Ink logic) — currency_type stays generic so this doesn't need a schema
+    change if that scope grows later.
+
+    max_redemptions:
+        None  -> unlimited redemptions
+        N     -> capped at N total redemptions across all users
+
+    Deactivating a code for a specific user is handled entirely by the
+    PromoCodeRedemption unique_together constraint below — there's no
+    separate "used" flag per user, since the redemption row itself is
+    the record of use.
+    """
+    code = models.CharField(max_length=32, unique=True, db_index=True)
+    currency_type = models.CharField(
+        max_length=10, choices=CURRENCY_TYPES, default='black_ink'
+    )
+    amount = models.PositiveIntegerField()
+    is_active = models.BooleanField(default=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    max_redemptions = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text='Leave blank for unlimited redemptions.',
+    )
+    times_redeemed = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Promo Code'
+        verbose_name_plural = 'Promo Codes'
+
+    def __str__(self):
+        return self.code
+
+    def clean(self):
+        if self.expires_at and self.expires_at <= timezone.now():
+            raise ValidationError('Expiration date must be in the future.')
+
+    def save(self, *args, **kwargs):
+        # Normalize casing at the model level (not just in the admin form)
+        # so every entry point — admin, shell, a future public API — treats
+        # "SAVE10" and "save10" as the same code.
+        if self.code:
+            self.code = self.code.strip().upper()
+        super().save(*args, **kwargs)
+
+    def is_expired(self):
+        return self.expires_at is not None and timezone.now() >= self.expires_at
+
+    def has_redemptions_remaining(self):
+        return self.max_redemptions is None or self.times_redeemed < self.max_redemptions
+
+
+class PromoCodeRedemption(models.Model):
+    """
+    One redemption of a PromoCode by a user. This row's existence IS the
+    "deactivate this code for this user" behavior from the client request —
+    a second redemption attempt is blocked by the unique_together constraint,
+    no separate per-user flag needed.
+    """
+    user = models.ForeignKey(
+        'userApp.User',
+        on_delete=models.CASCADE,
+        related_name='promo_redemptions',
+    )
+    promo_code = models.ForeignKey(
+        PromoCode,
+        on_delete=models.CASCADE,
+        related_name='redemptions',
+    )
+    redeemed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('user', 'promo_code')]
+        ordering = ['-redeemed_at']
+        verbose_name = 'Promo Code Redemption'
+        verbose_name_plural = 'Promo Code Redemptions'
+
+    def __str__(self):
+        return f'{self.user.email} redeemed {self.promo_code.code}'
 
 
 class FoundingAuthorBonusTier(models.Model):
@@ -218,3 +349,41 @@ class FoundingAuthorEligibleBook(models.Model):
                     f'Slot #{self.slot.slot_number} is limited to {limit} book(s) '
                     f'({current_count} already assigned).'
                 )
+
+class QuillPurchase(models.Model):
+    """
+    One Stripe Checkout purchase of a QuillBundle. Linked 1:1 to the
+    Transaction that actually credited the wallet, so Transaction stays
+    currency/source-agnostic while this model holds everything
+    Stripe-specific for reconciliation, support, and refunds.
+    """
+    user = models.ForeignKey(
+        'userApp.User', on_delete=models.CASCADE, related_name='quill_purchases'
+    )
+    quill_bundle = models.ForeignKey(
+        QuillBundle, on_delete=models.PROTECT, related_name='purchases'
+    )
+    transaction = models.OneToOneField(
+        Transaction, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='quill_purchase'
+    )
+    stripe_checkout_session_id = models.CharField(max_length=255, unique=True, db_index=True)
+    stripe_payment_intent_id = models.CharField(max_length=255, blank=True)
+    stripe_event_id = models.CharField(max_length=255, unique=True, db_index=True)
+    amount_paid_cents = models.PositiveIntegerField()
+    currency = models.CharField(max_length=10, default='usd')
+    status = models.CharField(
+        max_length=20,
+        choices=[('pending', 'Pending'), ('completed', 'Completed'), ('refunded', 'Refunded')],
+        default='pending',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Quill Purchase'
+        verbose_name_plural = 'Quill Purchases'
+
+    def __str__(self):
+        return f'{self.user.email} — {self.quill_bundle.name} — {self.status}'

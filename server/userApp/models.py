@@ -209,6 +209,16 @@ class EmailVerificationToken(models.Model):
 
     def __str__(self):
         return f'{self.user.email} verification token'
+
+class AuthHandoffToken(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='auth_handoff_tokens')
+    token = models.CharField(max_length=64, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f'{self.user.email} handoff token'
     
 class PasswordResetToken(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='password_reset_tokens')

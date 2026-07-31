@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth import get_user_model
-from .models import User, UserProfile, UserWallet, AdminProfile, AuthorProfile, FreeAuthorProfile, ModeratorProfile, AuthorRequest, EmailVerificationToken, PasswordResetToken, UserFollowAuthor
+from .models import User, UserProfile, UserWallet, AdminProfile, AuthorProfile, FreeAuthorProfile, ModeratorProfile, AuthorRequest, EmailVerificationToken, PasswordResetToken, UserFollowAuthor, AuthHandoffToken
 
 User = get_user_model()
 
@@ -59,6 +59,13 @@ class FreeAuthorFollowersInline(admin.TabularInline):
     readonly_fields = ['user', 'followed_at']
     can_delete = True
     fk_name = 'free_author_profile'
+
+@admin.register(AuthHandoffToken)
+class AuthHandoffTokenAdmin(admin.ModelAdmin):
+    list_display = ('user', 'is_used', 'created_at', 'expires_at')
+    list_filter = ('is_used',)
+    search_fields = ('user__email',)
+    readonly_fields = ('user', 'token', 'created_at', 'expires_at', 'is_used')
 
 
 class UserAdmin(BaseUserAdmin):
