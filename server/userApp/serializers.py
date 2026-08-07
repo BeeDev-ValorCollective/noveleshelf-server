@@ -40,7 +40,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
-        fields = ['username', 'first_name', 'last_name', 'avatar_url', 'bio', 'created_at']
+        fields = ['username', 'first_name', 'last_name', 'avatar_url', 'bio', 'created_at', 'reading_theme', 'reading_font_size']
 
 
 class UserWalletSerializer(serializers.ModelSerializer):
@@ -175,3 +175,16 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_following_count(self, obj):
         return obj.following.count()
+
+class ReadingPreferencesSerializer(serializers.ModelSerializer):
+    reading_font_size = serializers.IntegerField(min_value=12, max_value=32)
+
+    class Meta:
+        model = UserProfile
+        fields = ['reading_theme', 'reading_font_size']
+
+    def validate_reading_theme(self, value):
+        valid = dict(UserProfile._meta.get_field('reading_theme').choices)
+        if value not in valid:
+            raise serializers.ValidationError('Invalid theme.')
+        return value

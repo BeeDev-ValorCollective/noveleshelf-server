@@ -51,7 +51,9 @@ def create_quill_checkout(request):
                     'unit_amount': bundle.price_cents,
                 },
                 'quantity': 1,
+                
             }],
+            managed_payments={"enabled": False},
             metadata={
                 'user_id': str(request.user.id),
                 'quill_bundle_id': str(bundle.id),

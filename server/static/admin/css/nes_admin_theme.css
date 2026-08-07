@@ -1,0 +1,97 @@
+/*
+ * NES Django Admin — brand color override
+ * Drop this file at: static/admin/css/nes_admin_theme.css
+ * (or wherever your STATICFILES setup serves admin overrides from)
+ *
+ * Works with Django 4.0+ admin, which themes itself via CSS custom
+ * properties defined in django.contrib.admin's base.css. We only
+ * redefine the variables — we never touch Django's own stylesheet.
+ */
+
+:root {
+  /* Core surfaces */
+  --primary: #7474cc;              /* accent-purple — primary brand action color */
+  --primary-fg: #ffffff;
+
+  --body-fg: #ffffff;              /* text-primary */
+  --body-bg: #090414;              /* bg-primary */
+  --body-quiet-color: #cfc7e6;     /* text-secondary */
+  --body-loud-color: #ffffff;
+
+  /* Header / branding bar */
+  --header-color: #ffffff;
+  --header-branding-color: #ffffff;
+  --header-bg: #090414;
+  --header-link-color: #cfc7e6;
+
+  /* Breadcrumbs */
+  --breadcrumbs-fg: #cfc7e6;
+  --breadcrumbs-link-fg: #ffffff;
+  --breadcrumbs-bg: #7474cc;
+
+  /* Links */
+  --link-fg: #68b9b9;              /* accent-teal for standard links */
+  --link-hover-color: #7474cc;     /* accent-purple on hover */
+  --link-selected-fg: #DD7a7a;     /* accent-coral for selected/active */
+
+  /* Borders / dividers */
+  --hairline-color: #ffffff14;     /* border-color */
+  --border-color: #ffffff14;
+
+  /* Backgrounds for cards, rows, module boxes */
+  --darkened-bg: #ffffff0d;        /* bg-secondary, translucent panels */
+  --selected-bg: #ffffff14;
+  --selected-row: #7474cc22;
+
+  /* Buttons */
+  --button-fg: #ffffff;
+  --button-bg: #7474cc;
+  --button-hover-bg: #68b9b9;
+  --default-button-bg: #7474cc;
+  --default-button-hover-bg: #68b9b9;
+  --close-button-bg: #ffffff0d;
+  --close-button-hover-bg: #ffffff14;
+  --delete-button-bg: #DD7a7a;
+  --delete-button-hover-bg: #c96262;
+
+  /* Messages / alerts */
+  --message-success-bg: #68b9b933;
+  --message-warning-bg: #DD7a7a33;
+  --message-error-bg: #DD7a7a55;
+  --error-fg: #DD7a7a;
+
+  /* Object tools (Add/Export buttons top-right) */
+  --object-tools-fg: #ffffff;
+  --object-tools-bg: #7474cc;
+  --object-tools-hover-bg: #68b9b9;
+}
+
+/* Module headers (the colored bars over each fieldset/app group) */
+.module h2, .module caption, .inline-group h2 {
+  background: #ffffff0d;
+  color: #ffffff;
+  border-bottom: 1px solid #ffffff14;
+}
+
+/* Dashboard app list boxes get the translucent card treatment */
+.dashboard .module table th,
+.dashboard .module table td {
+  background: transparent;
+}
+
+.dashboard .module {
+  background: #ffffff0d;
+  border: 1px solid #ffffff14;
+  border-radius: 6px;
+}
+
+/* Login page background, since it's outside the main layout wrapper */
+.login {
+  background: #090414;
+}
+
+.login #container {
+  background: #ffffff0d;
+  border: 1px solid #ffffff14;
+  border-radius: 8px;
+}
