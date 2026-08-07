@@ -70,6 +70,17 @@ class UserProfile(models.Model):
     )
     bio = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    reading_theme = models.CharField(
+        max_length=10,
+        choices=[
+            ('light', 'Light'),
+            ('dark', 'Dark'),
+            ('sepia', 'Sepia'),
+            ('amoled', 'AMOLED Black'),
+        ],
+        default='dark'
+    )
+    reading_font_size = models.PositiveSmallIntegerField(default=18)
 
     def __str__(self):
         return f'{self.user.email} profile'

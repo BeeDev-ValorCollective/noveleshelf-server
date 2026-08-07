@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 from django.contrib.auth import get_user_model
-from ..serializers import UserProfileSerializer, AdminProfileSerializer, AuthorProfileSerializer, ModeratorProfileSerializer, FreeAuthorProfileSerializer, AuthorRequestSerializer, FreeAuthorProfileDashboardSerializer, AuthorProfileDashboardSerializer
+from ..serializers import UserProfileSerializer, AdminProfileSerializer, AuthorProfileSerializer, ModeratorProfileSerializer, FreeAuthorProfileSerializer, AuthorRequestSerializer, FreeAuthorProfileDashboardSerializer, AuthorProfileDashboardSerializer, ReadingPreferencesSerializer
 from ..models import UserProfile, AdminProfile, AuthorProfile, ModeratorProfile, FreeAuthorProfile, AuthorRequest, UserFollowAuthor
 from utils.email_utils import send_verification_email, send_notification
 from django.utils import timezone
@@ -86,6 +86,16 @@ def update_profile(request):
         'message': 'Profile updated successfully',
         'profile': UserProfileSerializer(profile).data
     })
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def reading_preferences(request):
+    profile = request.user.profile
+    serializer = ReadingPreferencesSerializer(profile, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data)
+    return Response(serializer.errors, status=400)
 
 
 @api_view(['PATCH'])
