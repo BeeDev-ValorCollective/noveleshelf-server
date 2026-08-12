@@ -36,7 +36,8 @@ def register(request):
         # there's nothing actionable for them to do differently.
         referral_code_input = request.data.get('referral_code')
         if referral_code_input:
-            redeem_referral_code(user, referral_code_input)
+            platform = request.headers.get('X-Client-Platform', 'unknown')
+            redeem_referral_code(user, referral_code_input, platform=platform)
 
         thread = threading.Thread(target=send_verification_email, args=(user,))
         thread.daemon = True

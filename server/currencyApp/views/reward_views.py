@@ -13,6 +13,7 @@ from currencyApp.models import (
     ReferralCode, ReferralRedemption,
 )
 from userApp.models import UserWallet
+from statsApp.utils import log_event
 
 
 REWARD_CYCLE_LENGTH = 28
@@ -282,7 +283,7 @@ def _grant_referral_reward(redemption):
     redemption.save(update_fields=['rewarded_at'])
 
 
-def redeem_referral_code(referee, code_input):
+def redeem_referral_code(referee, code_input, platform='unknown'):
 
     #Redeem a friend's referral code for the given referee. Covers both
     #entry points -- signup time and backfill (a reader entering a
@@ -298,6 +299,14 @@ def redeem_referral_code(referee, code_input):
     #here first for a clean error message rather than relying on the
     #IntegrityError. Self-referral is blocked the same way.
 
+    #Every non-blank submission is logged to statsApp's Event log
+    #(event_type='referral_code_redeem'), success or failure, so admin
+    #metrics can eventually show the full funnel -- attempts vs actual
+    #successful redemptions -- not just the successful slice that
+    #ReferralRedemption rows alone would show. A blank code (the common
+    #case -- most signups don't have one) isn't logged at all, since
+    #that's an absence of an attempt, not an attempt.
+
     #Returns a dict: {'success': bool, 'error_code': str or None,
     #'error': str or None, 'rewarded_immediately': bool}.
     code = (code_input or '').strip().upper()
@@ -308,14 +317,29 @@ def redeem_referral_code(referee, code_input):
         try:
             referral_code = ReferralCode.objects.select_for_update().get(code=code)
         except ReferralCode.DoesNotExist:
+            log_event(
+                referee, 'referral_code_redeem', platform=platform,
+                code=code, success=False, error_code='invalid_code',
+                referrer_id=None, rewarded_immediately=False,
+            )
             return {'success': False, 'error_code': 'invalid_code', 'error': 'Invalid referral code.', 'rewarded_immediately': False}
 
         referrer = referral_code.user
 
         if referrer.id == referee.id:
+            log_event(
+                referee, 'referral_code_redeem', platform=platform,
+                code=code, success=False, error_code='self_referral',
+                referrer_id=referrer.id, rewarded_immediately=False,
+            )
             return {'success': False, 'error_code': 'self_referral', 'error': "You can't redeem your own referral code.", 'rewarded_immediately': False}
 
         if ReferralRedemption.objects.filter(referee=referee).exists():
+            log_event(
+                referee, 'referral_code_redeem', platform=platform,
+                code=code, success=False, error_code='already_redeemed',
+                referrer_id=referrer.id, rewarded_immediately=False,
+            )
             return {'success': False, 'error_code': 'already_redeemed', 'error': "You've already redeemed a referral code.", 'rewarded_immediately': False}
 
         redemption = ReferralRedemption.objects.create(
@@ -325,7 +349,18 @@ def redeem_referral_code(referee, code_input):
 
         if referee.is_verified:
             _grant_referral_reward(redemption)
+            log_event(
+                referee, 'referral_code_redeem', platform=platform,
+                code=code, success=True, error_code=None,
+                referrer_id=referrer.id, rewarded_immediately=True,
+            )
             return {'success': True, 'error_code': None, 'error': None, 'rewarded_immediately': True}
+
+        log_event(
+            referee, 'referral_code_redeem', platform=platform,
+            code=code, success=True, error_code=None,
+            referrer_id=referrer.id, rewarded_immediately=False,
+        )
 
     return {'success': True, 'error_code': None, 'error': None, 'rewarded_immediately': False}
 
@@ -366,7 +401,8 @@ def redeem_referral_code_view(request):
     #there's no JWT yet at that point) or via backfill from Settings
     #after the fact (this view, for an already-authenticated user).
     code_input = request.data.get('code')
-    result = redeem_referral_code(request.user, code_input)
+    platform = request.headers.get('X-Client-Platform', 'unknown')
+    result = redeem_referral_code(request.user, code_input, platform=platform)
 
     if not result['success']:
         error_status = (
