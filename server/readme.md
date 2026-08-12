@@ -32,8 +32,7 @@ sudo dpkg-reconfigure unattended-upgrades
 ```
 1
 Install the Stripe CLI
-On Mac: brew install stripe/stripe-cli/stripe. Skip if it's already on this laptop — check with `stripe --version` first.
-On Windows: Grab the .exe from Stripe's GitHub releases page (stripe-cli releases), unzip it, and either add the folder to your PATH or just run it from that folder directly.
+npm install -g @stripe/cli
 2
 Log in to your Stripe account
 Run `stripe login` — it opens a browser tab to authorize the CLI against your Stripe account. It'll pair the terminal session with your dashboard.
@@ -45,7 +44,7 @@ Set sandbox keys in your local .env
 Make sure `noveleshelf-server`'s local .env has the sk_test_/pk_test_ sandbox keys, NOT the live keys. This is what keeps any local testing from touching real charges.
 5
 Forward webhooks to your local server
-Run `stripe listen --forward-to localhost:8000/api/<your-webhook-path>/` (swap in your actual Django webhook URL). It'll print a `whsec_...` signing secret — copy that into your local .env as STRIPE_WEBHOOK_SECRET so signature verification passes locally.
+Run `stripe listen --forward-to localhost:8000/api/currency/quills/webhook/` (swap in your actual Django webhook URL). It'll print a `whsec_...` signing secret — copy that into your local .env as STRIPE_WEBHOOK_SECRET so signature verification passes locally.
 6
 Trigger a test event (optional sanity check)
 With `stripe listen` running in one terminal tab, run `stripe trigger checkout.session.completed` in another to fire a fake event through your webhook handler without doing a full checkout — good for confirming credit_quill_purchase() fires correctly.
