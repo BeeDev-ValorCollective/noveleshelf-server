@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import UserProfile, UserWallet, AdminProfile, AuthorProfile, FreeAuthorProfile, ModeratorProfile, AuthorRequest, UserFollowAuthor
-from currencyApp.serializers import FoundingAuthorBadgeSerializer
+from currencyApp.serializers import FoundingAuthorBadgeSerializer, ReferralCodeSerializer
 
 User = get_user_model()
 
@@ -40,7 +40,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
-        fields = ['username', 'first_name', 'last_name', 'avatar_url', 'bio', 'created_at']
+        fields = ['username', 'first_name', 'last_name', 'avatar_url', 'bio', 'created_at', 'reading_theme', 'reading_font_size']
 
 
 class UserWalletSerializer(serializers.ModelSerializer):
@@ -167,11 +167,25 @@ class UserSerializer(serializers.ModelSerializer):
     author_profile = AuthorProfileSerializer(read_only=True)
     free_author_profile = FreeAuthorProfileSerializer(read_only=True)
     moderator_profile = ModeratorProfileSerializer(read_only=True)
+    referral_code = ReferralCodeSerializer(read_only=True)
     following_count = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['id', 'email', 'date_of_birth', 'default_login_role', 'is_verified', 'profile', 'wallet', 'admin_profile', 'author_profile', 'free_author_profile', 'moderator_profile', 'following_count']
+        fields = ['id', 'email', 'date_of_birth', 'default_login_role', 'is_verified', 'profile', 'wallet', 'admin_profile', 'author_profile', 'free_author_profile', 'moderator_profile', 'referral_code', 'following_count']
 
     def get_following_count(self, obj):
         return obj.following.count()
+
+class ReadingPreferencesSerializer(serializers.ModelSerializer):
+    reading_font_size = serializers.IntegerField(min_value=12, max_value=32)
+
+    class Meta:
+        model = UserProfile
+        fields = ['reading_theme', 'reading_font_size']
+
+    def validate_reading_theme(self, value):
+        valid = dict(UserProfile._meta.get_field('reading_theme').choices)
+        if value not in valid:
+            raise serializers.ValidationError('Invalid theme.')
+        return value

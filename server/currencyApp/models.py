@@ -37,6 +37,7 @@ class Transaction(models.Model):
         ('admin_adjustment', 'Admin Adjustment'),
         ('admin_gift', 'Admin Gift'),
         ('promo_code', 'Promo Code Redemption'),
+        ('referral_reward', 'Referral Reward'),
     ]
 
     user = models.ForeignKey(
@@ -95,6 +96,7 @@ class QuillBundle(models.Model):
     
 class PlatformSettings(models.Model):
     daily_black_ink_reward = models.IntegerField(default=2)
+    referral_reward_amount = models.IntegerField(default=25)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -194,6 +196,88 @@ class PromoCodeRedemption(models.Model):
 
     def __str__(self):
         return f'{self.user.email} redeemed {self.promo_code.code}'
+
+
+class ReferralCode(models.Model):
+    """
+    One permanent, reusable code per user. Auto-generated on account
+    creation (see signals.py) and backfilled for existing users via
+    a one-time data migration. Never expires, never regenerates --
+    the same code can be handed out to any number of friends.
+    """
+    user = models.OneToOneField(
+        'userApp.User',
+        on_delete=models.CASCADE,
+        related_name='referral_code',
+    )
+    code = models.CharField(max_length=16, unique=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Referral Code'
+        verbose_name_plural = 'Referral Codes'
+
+    def __str__(self):
+        return f'{self.code} ({self.user.email})'
+
+    def save(self, *args, **kwargs):
+        # Normalize casing at the model level, same as PromoCode --
+        # covers admin/shell creation, not just generate_referral_code().
+        if self.code:
+            self.code = self.code.strip().upper()
+        super().save(*args, **kwargs)
+
+
+class ReferralRedemption(models.Model):
+    """
+    Records one referee redeeming one referrer's code. `referee` is
+    OneToOne, not ForeignKey -- that's what enforces "a reader can only
+    ever redeem one referral code, ever," whether at signup or via
+    backfill later.
+
+    rewarded_at stays null until the referee's account is verified.
+    That's the actual reward-payout trigger, not redemption itself --
+    redeeming just records the relationship; verification is what
+    pays out Black Ink Drops to both sides.
+
+    No FK back to the Transaction rows this generates -- consistent
+    with DailyLoginReward and PromoCodeRedemption, which also don't
+    link back to their transactions. (QuillPurchase is the exception,
+    and only because it needs to reconcile against a real Stripe
+    payment -- not a pattern that applies here.)
+    """
+    referrer = models.ForeignKey(
+        'userApp.User',
+        on_delete=models.CASCADE,
+        related_name='referrals_given',
+    )
+    referee = models.OneToOneField(
+        'userApp.User',
+        on_delete=models.CASCADE,
+        related_name='referral_redemption',
+    )
+    redeemed_at = models.DateTimeField(auto_now_add=True)
+    rewarded_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-redeemed_at']
+        verbose_name = 'Referral Redemption'
+        verbose_name_plural = 'Referral Redemptions'
+
+    def __str__(self):
+        status = 'rewarded' if self.rewarded_at else 'pending verification'
+        return f'{self.referee.email} referred by {self.referrer.email} ({status})'
+
+    def clean(self):
+        # Model-level declaration of the self-referral rule, matching the
+        # FoundingAuthorSlot/FoundingAuthorEligibleBook convention of
+        # putting business-rule validation in clean(). The actual
+        # enforcement path is still the check in redeem_referral_code(),
+        # since clean() doesn't run automatically on save() -- this is
+        # the defense-in-depth copy of that rule.
+        if self.referrer_id and self.referee_id and self.referrer_id == self.referee_id:
+            raise ValidationError('A user cannot redeem their own referral code.')
 
 
 class FoundingAuthorBonusTier(models.Model):

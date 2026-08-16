@@ -17,4 +17,5 @@ urlpatterns = [
     path('author-request/my-requests/', user_views.get_my_author_requests),
     path('author-dashboard/', user_views.author_dashboard),
     path('free-author-dashboard/', user_views.free_author_dashboard),
+    path('reading-preferences/', user_views.reading_preferences),
 ]
