@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 from .models import (
     DailyLoginReward, Transaction, PlatformSettings,
     PromoCode, PromoCodeRedemption,
+    ReferralCode, ReferralRedemption,
     FoundingAuthorBonusTier, FoundingAuthorDuration,
     FoundingAuthorSlot, FoundingAuthorEligibleBook, QuillBundle, QuillPurchase
 )
@@ -32,7 +33,7 @@ class QuillBundleAdmin(admin.ModelAdmin):
 
 @admin.register(PlatformSettings)
 class PlatformSettingsAdmin(admin.ModelAdmin):
-    list_display = ['daily_black_ink_reward', 'updated_at']
+    list_display = ['daily_black_ink_reward', 'referral_reward_amount', 'updated_at']
 
 
 class PromoCodeRedemptionInline(admin.TabularInline):
@@ -73,6 +74,74 @@ class PromoCodeRedemptionAdmin(admin.ModelAdmin):
     list_filter = ['promo_code']
     search_fields = ['user__email', 'promo_code__code']
     readonly_fields = ['user', 'promo_code', 'redeemed_at']
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(ReferralCode)
+class ReferralCodeAdmin(admin.ModelAdmin):
+    """
+    Read-only -- codes are only ever created by the post_save signal on
+    User (or the one-time backfill migration for existing users), never
+    by hand. Editing an existing code after the fact would break it for
+    anyone the user already shared it with, so change is locked down too,
+    not just add.
+    """
+    list_display = ['user', 'code', 'created_at']
+    search_fields = ['user__email', 'code']
+    readonly_fields = ['user', 'code', 'created_at']
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+class ReferralRewardStatusFilter(admin.SimpleListFilter):
+    """
+    Surfaces the operationally useful question -- "which referrals are
+    still waiting on the referee to verify their email" -- since that's
+    not a real field to filter on directly (rewarded_at is a datetime,
+    not a status choice).
+    """
+    title = 'reward status'
+    parameter_name = 'reward_status'
+
+    def lookups(self, request, model_admin):
+        return [
+            ('pending', 'Pending Verification'),
+            ('rewarded', 'Rewarded'),
+        ]
+
+    def queryset(self, request, queryset):
+        if self.value() == 'pending':
+            return queryset.filter(rewarded_at__isnull=True)
+        if self.value() == 'rewarded':
+            return queryset.filter(rewarded_at__isnull=False)
+        return queryset
+
+
+@admin.register(ReferralRedemption)
+class ReferralRedemptionAdmin(admin.ModelAdmin):
+    """
+    Read-only log, same pattern as PromoCodeRedemptionAdmin -- redemptions
+    are only ever created through redeem_referral_code(), never by hand.
+
+    No inline on ReferralCodeAdmin for this (unlike PromoCode/PromoCodeRedemption) --
+    ReferralRedemption has no FK to ReferralCode, only to User via referrer/
+    referee, so there's no direct relation for Django admin to inline against.
+    Search by referrer's email here instead to look up everyone a user has
+    referred.
+    """
+    list_display = ['referrer', 'referee', 'redeemed_at', 'rewarded_at']
+    list_filter = [ReferralRewardStatusFilter]
+    search_fields = ['referrer__email', 'referee__email']
+    readonly_fields = ['referrer', 'referee', 'redeemed_at', 'rewarded_at']
 
     def has_add_permission(self, request):
         return False

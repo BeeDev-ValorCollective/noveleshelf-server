@@ -275,6 +275,20 @@ class UserFollowAuthor(models.Model):
                 condition=models.Q(free_author_profile__isnull=False),
                 name='unique_user_free_author_follow'
             ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        author_profile__isnull=False,
+                        free_author_profile__isnull=True
+                    )
+                    |
+                    models.Q(
+                        author_profile__isnull=True,
+                        free_author_profile__isnull=False
+                    )
+                ),
+                name='follow_exactly_one_author_type'
+            ),
         ]
 
     def __str__(self):

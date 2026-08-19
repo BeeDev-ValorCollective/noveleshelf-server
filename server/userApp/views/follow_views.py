@@ -69,11 +69,25 @@ class MyFollowingView(APIView):
 
         if author_profile_id:
             author = get_object_or_404(AuthorProfile, id=author_profile_id, is_publicly_visible=True, is_active=True)
+            if author.user_id == request.user.id:
+                return Response(
+                    {
+                        'detail': 'You cannot follow yourself.'
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
             follow, created = UserFollowAuthor.objects.get_or_create(
                 user=request.user, author_profile=author
             )
         else:
             author = get_object_or_404(FreeAuthorProfile, id=free_author_profile_id, is_publicly_visible=True, is_active=True)
+            if author.user_id == request.user.id:
+                return Response(
+                    {
+                        'detail': 'You cannot follow yourself.'
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
             follow, created = UserFollowAuthor.objects.get_or_create(
                 user=request.user, free_author_profile=author
             )
@@ -92,3 +106,59 @@ class UnfollowView(APIView):
         follow = get_object_or_404(UserFollowAuthor, id=follow_id, user=request.user)
         follow.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+class FollowStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, profile_type, profile_id):
+        """
+        Check whether the current user follows an author.
+
+        profile_type:
+            author
+            free_author
+        """
+
+        if profile_type == 'author':
+            author = get_object_or_404(
+                AuthorProfile,
+                id=profile_id,
+                is_publicly_visible=True,
+                is_active=True
+            )
+
+            follow = UserFollowAuthor.objects.filter(
+                user=request.user,
+                author_profile=author
+            ).first()
+
+        elif profile_type == 'free_author':
+            author = get_object_or_404(
+                FreeAuthorProfile,
+                id=profile_id,
+                is_publicly_visible=True,
+                is_active=True
+            )
+
+            follow = UserFollowAuthor.objects.filter(
+                user=request.user,
+                free_author_profile=author
+            ).first()
+
+        else:
+            return Response(
+                {
+                    'detail': 'Invalid author profile type.'
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return Response(
+            {
+                'following': follow is not None,
+                'follow_id': follow.id if follow else None,
+                'profile_type': profile_type,
+                'profile_id': profile_id,
+            },
+            status=status.HTTP_200_OK
+        )

@@ -10,8 +10,10 @@ from rest_framework.response import Response
 from currencyApp.models import (
     DailyLoginReward, PlatformSettings, Transaction,
     PromoCode, PromoCodeRedemption, QuillBundle, QuillPurchase,
+    ReferralCode, ReferralRedemption,
 )
 from userApp.models import UserWallet
+from statsApp.utils import log_event
 
 
 REWARD_CYCLE_LENGTH = 28
@@ -224,6 +226,194 @@ def redeem_promo_code_view(request):
     return Response({
         'amount': result['amount'],
         'currency_type': result['currency_type'],
+    }, status=status.HTTP_200_OK)
+
+
+def _grant_referral_reward(redemption):
+
+    #Credits both the referrer and referee's black_ink wallets for a
+    #ReferralRedemption and stamps rewarded_at. Assumes it's already
+    #running inside an outer transaction.atomic() block -- called from
+    #both redeem_referral_code() (immediate-reward/backfill case) and
+    #apply_pending_referral_reward() (verification-triggered case), so
+    #the locking/crediting logic only exists in one place.
+
+    #Locks both wallets in a consistent order (lower user_id first)
+    #regardless of which side is the referrer, so two simultaneous
+    #referral rewards touching an overlapping pair of users can't
+    #deadlock against each other.
+    settings = PlatformSettings.objects.first()
+    reward_amount = settings.referral_reward_amount if settings else 25
+
+    referrer_id = redemption.referrer_id
+    referee_id = redemption.referee_id
+    first_id, second_id = sorted([referrer_id, referee_id])
+
+    first_wallet = UserWallet.objects.select_for_update().get(user_id=first_id)
+    second_wallet = UserWallet.objects.select_for_update().get(user_id=second_id)
+
+    referrer_wallet = first_wallet if first_id == referrer_id else second_wallet
+    referee_wallet = first_wallet if first_id == referee_id else second_wallet
+
+    referrer_wallet.black_ink_balance += reward_amount
+    referrer_wallet.save(update_fields=['black_ink_balance', 'updated_at'])
+
+    referee_wallet.black_ink_balance += reward_amount
+    referee_wallet.save(update_fields=['black_ink_balance', 'updated_at'])
+
+    Transaction.objects.create(
+        user_id=referrer_id,
+        transaction_type='referral_reward',
+        currency_type='black_ink',
+        amount=reward_amount,
+        balance_after=referrer_wallet.black_ink_balance,
+        notes=f'Referral reward: referred {redemption.referee.email}',
+    )
+
+    Transaction.objects.create(
+        user_id=referee_id,
+        transaction_type='referral_reward',
+        currency_type='black_ink',
+        amount=reward_amount,
+        balance_after=referee_wallet.black_ink_balance,
+        notes=f'Referral reward: referred by {redemption.referrer.email}',
+    )
+
+    redemption.rewarded_at = timezone.now()
+    redemption.save(update_fields=['rewarded_at'])
+
+
+def redeem_referral_code(referee, code_input, platform='unknown'):
+
+    #Redeem a friend's referral code for the given referee. Covers both
+    #entry points -- signup time and backfill (a reader entering a
+    #friend's code later from Settings) -- since the only real
+    #difference between them is whether referee.is_verified is already
+    #True. If it is, the reward pays out immediately (the backfill
+    #case). If not, redemption is recorded and the reward waits for
+    #apply_pending_referral_reward() to be called once verification
+    #completes.
+
+    #A referee can only ever redeem one referral code, ever -- enforced
+    #by the ReferralRedemption.referee OneToOneField, checked explicitly
+    #here first for a clean error message rather than relying on the
+    #IntegrityError. Self-referral is blocked the same way.
+
+    #Every non-blank submission is logged to statsApp's Event log
+    #(event_type='referral_code_redeem'), success or failure, so admin
+    #metrics can eventually show the full funnel -- attempts vs actual
+    #successful redemptions -- not just the successful slice that
+    #ReferralRedemption rows alone would show. A blank code (the common
+    #case -- most signups don't have one) isn't logged at all, since
+    #that's an absence of an attempt, not an attempt.
+
+    #Returns a dict: {'success': bool, 'error_code': str or None,
+    #'error': str or None, 'rewarded_immediately': bool}.
+    code = (code_input or '').strip().upper()
+    if not code:
+        return {'success': False, 'error_code': 'missing_code', 'error': 'A code is required.', 'rewarded_immediately': False}
+
+    with transaction.atomic():
+        try:
+            referral_code = ReferralCode.objects.select_for_update().get(code=code)
+        except ReferralCode.DoesNotExist:
+            log_event(
+                referee, 'referral_code_redeem', platform=platform,
+                code=code, success=False, error_code='invalid_code',
+                referrer_id=None, rewarded_immediately=False,
+            )
+            return {'success': False, 'error_code': 'invalid_code', 'error': 'Invalid referral code.', 'rewarded_immediately': False}
+
+        referrer = referral_code.user
+
+        if referrer.id == referee.id:
+            log_event(
+                referee, 'referral_code_redeem', platform=platform,
+                code=code, success=False, error_code='self_referral',
+                referrer_id=referrer.id, rewarded_immediately=False,
+            )
+            return {'success': False, 'error_code': 'self_referral', 'error': "You can't redeem your own referral code.", 'rewarded_immediately': False}
+
+        if ReferralRedemption.objects.filter(referee=referee).exists():
+            log_event(
+                referee, 'referral_code_redeem', platform=platform,
+                code=code, success=False, error_code='already_redeemed',
+                referrer_id=referrer.id, rewarded_immediately=False,
+            )
+            return {'success': False, 'error_code': 'already_redeemed', 'error': "You've already redeemed a referral code.", 'rewarded_immediately': False}
+
+        redemption = ReferralRedemption.objects.create(
+            referrer=referrer,
+            referee=referee,
+        )
+
+        if referee.is_verified:
+            _grant_referral_reward(redemption)
+            log_event(
+                referee, 'referral_code_redeem', platform=platform,
+                code=code, success=True, error_code=None,
+                referrer_id=referrer.id, rewarded_immediately=True,
+            )
+            return {'success': True, 'error_code': None, 'error': None, 'rewarded_immediately': True}
+
+        log_event(
+            referee, 'referral_code_redeem', platform=platform,
+            code=code, success=True, error_code=None,
+            referrer_id=referrer.id, rewarded_immediately=False,
+        )
+
+    return {'success': True, 'error_code': None, 'error': None, 'rewarded_immediately': False}
+
+
+def apply_pending_referral_reward(user):
+
+    #Call this once a user's email verification completes (i.e.
+    #wherever User.is_verified gets set to True). Checks whether this
+    #user redeemed a referral code as a referee before they were
+    #verified, and if so, pays out the reward now. No-op if there's no
+    #pending redemption, or if it's already been rewarded -- safe to
+    #call unconditionally from the verification flow rather than
+    #needing to check first.
+
+    #Returns True if a reward was granted, False otherwise.
+    with transaction.atomic():
+        redemption = (
+            ReferralRedemption.objects
+            .select_for_update()
+            .filter(referee=user, rewarded_at__isnull=True)
+            .first()
+        )
+
+        if not redemption:
+            return False
+
+        _grant_referral_reward(redemption)
+
+    return True
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def redeem_referral_code_view(request):
+
+    #Endpoint for a reader to redeem a friend's referral code -- either
+    #during registration (called directly, not through this view, since
+    #there's no JWT yet at that point) or via backfill from Settings
+    #after the fact (this view, for an already-authenticated user).
+    code_input = request.data.get('code')
+    platform = request.headers.get('X-Client-Platform', 'unknown')
+    result = redeem_referral_code(request.user, code_input, platform=platform)
+
+    if not result['success']:
+        error_status = (
+            status.HTTP_404_NOT_FOUND
+            if result['error_code'] == 'invalid_code'
+            else status.HTTP_400_BAD_REQUEST
+        )
+        return Response({'error': result['error']}, status=error_status)
+
+    return Response({
+        'rewarded_immediately': result['rewarded_immediately'],
     }, status=status.HTTP_200_OK)
 
 

@@ -7,7 +7,9 @@ from django.contrib.auth import get_user_model
 from ..serializers import RegisterSerializer, UserSerializer
 from utils.email_utils import send_verification_email, send_password_reset_email, send_notification
 from userApp.models import EmailVerificationToken, PasswordResetToken, AuthHandoffToken
-from currencyApp.views.reward_views import process_daily_login_reward
+from currencyApp.views.reward_views import (
+    process_daily_login_reward, redeem_referral_code, apply_pending_referral_reward,
+)
 from statsApp.utils import record_daily_activity
 from statsApp.utils import record_daily_activity
 from django.utils import timezone
@@ -26,6 +28,16 @@ def register(request):
     if serializer.is_valid():
         user = serializer.save()
         refresh = RefreshToken.for_user(user)
+
+        # Best-effort -- redeem_referral_code() handles its own
+        # validation and never raises, so a missing/invalid/self
+        # referral code just no-ops here rather than blocking
+        # registration. The result isn't surfaced to the client;
+        # there's nothing actionable for them to do differently.
+        referral_code_input = request.data.get('referral_code')
+        if referral_code_input:
+            platform = request.headers.get('X-Client-Platform', 'unknown')
+            redeem_referral_code(user, referral_code_input, platform=platform)
 
         thread = threading.Thread(target=send_verification_email, args=(user,))
         thread.daemon = True
@@ -154,7 +166,12 @@ def verify_email(request):
     user = verification_token.user
     user.is_verified = True
     user.save()
-    
+
+    # If this user redeemed a referral code before verifying (i.e. at
+    # signup), this is what actually pays out the Black Ink reward to
+    # both sides. No-ops safely if there's no pending redemption.
+    apply_pending_referral_reward(user)
+
     verification_token.is_used = True
     verification_token.save()
     
