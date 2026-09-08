@@ -15,30 +15,58 @@ def get_author_display(book):
     """Returns display name and profile info for a book's author."""
     if book.author_profile:
         profile = book.author_profile
+
         if profile.show_real_name and profile.first_name:
             name = f'{profile.first_name} {profile.last_name or ""}'.strip()
         else:
-            name = profile.pen_name or profile.author_username or profile.user.email
+            name = (
+                profile.pen_name
+                or profile.author_username
+                or profile.user.email
+            )
+
         return {
+            'profile_id': profile.id,
+            'profile_type': 'author',
+            'user_id': profile.user_id,
             'display_name': name,
             'username': profile.author_username,
-            'avatar_url': str(profile.avatar_url) if profile.avatar_url else None,
+            'avatar_url': (
+                str(profile.avatar_url)
+                if profile.avatar_url
+                else None
+            ),
             'is_featured': profile.is_featured,
-            'author_type': 'paid'
+            'author_type': 'paid',
         }
+
     elif book.free_author_profile:
         profile = book.free_author_profile
+
         if profile.show_real_name and profile.first_name:
             name = f'{profile.first_name} {profile.last_name or ""}'.strip()
         else:
-            name = profile.pen_name or profile.author_username or profile.user.email
+            name = (
+                profile.pen_name
+                or profile.author_username
+                or profile.user.email
+            )
+
         return {
+            'profile_id': profile.id,
+            'profile_type': 'free_author',
+            'user_id': profile.user_id,
             'display_name': name,
             'username': profile.author_username,
-            'avatar_url': str(profile.avatar_url) if profile.avatar_url else None,
+            'avatar_url': (
+                str(profile.avatar_url)
+                if profile.avatar_url
+                else None
+            ),
             'is_featured': profile.is_featured,
-            'author_type': 'free'
+            'author_type': 'free',
         }
+
     return None
 
 
