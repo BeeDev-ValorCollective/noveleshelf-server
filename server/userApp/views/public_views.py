@@ -2,7 +2,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
-from userApp.models import AuthorProfile, FreeAuthorProfile
+from userApp.models import AuthorProfile, FreeAuthorProfile, UserFollowAuthor
 from booksApp.models import Book
 from booksApp.views.public_views import format_book_summary, get_visible_books
 
@@ -122,6 +122,15 @@ def public_author_detail(request, username):
     else:
         books_qs = get_visible_books().filter(free_author_profile=profile).order_by('-created_at')
 
+    if author_type == 'paid':
+        follower_count = UserFollowAuthor.objects.filter(
+            author_profile=profile
+        ).count()
+    else:
+        follower_count = UserFollowAuthor.objects.filter(
+            free_author_profile=profile
+        ).count()
+
     author_data = {
         'id': profile.id,
         'author_type': author_type,
@@ -134,6 +143,7 @@ def public_author_detail(request, username):
         'is_founding_author': is_founding_author,
         'book_count': books_qs.count(),
         'books': [format_book_summary(b) for b in books_qs],
+        'follower_count': follower_count,
     }
 
     return Response(author_data)
