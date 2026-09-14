@@ -29,4 +29,5 @@ urlpatterns = [
     path('api/currency/', include('currencyApp.urls')),
     # statsApp urls
     path('api/stats/admin/', include('statsApp.urls.admin_urls')),
+    path('api/push-token/', include('userApp.urls.push_token_urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
