@@ -162,3 +162,65 @@ class FollowStatusView(APIView):
             },
             status=status.HTTP_200_OK
         )
+
+class AuthorFollowerStatsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        profile_type = request.query_params.get('profile_type')
+
+        if profile_type == 'author':
+            profile = AuthorProfile.objects.filter(
+                user=request.user,
+                is_active=True
+            ).first()
+
+            if not profile:
+                return Response(
+                    {
+                        'detail': 'Paid author profile not found.'
+                    },
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            follower_count = UserFollowAuthor.objects.filter(
+                author_profile=profile
+            ).count()
+
+        elif profile_type == 'free_author':
+            profile = FreeAuthorProfile.objects.filter(
+                user=request.user,
+                is_active=True
+            ).first()
+
+            if not profile:
+                return Response(
+                    {
+                        'detail': 'Free author profile not found.'
+                    },
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            follower_count = UserFollowAuthor.objects.filter(
+                free_author_profile=profile
+            ).count()
+
+        else:
+            return Response(
+                {
+                    'detail': (
+                        'profile_type must be either '
+                        '"author" or "free_author".'
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return Response(
+            {
+                'profile_type': profile_type,
+                'profile_id': profile.id,
+                'follower_count': follower_count,
+            },
+            status=status.HTTP_200_OK
+        )

@@ -95,6 +95,7 @@ class Book(models.Model):
     free_chapters = models.IntegerField(default=10)
     has_pending_changes = models.BooleanField(default=False)
     submitted_at = models.DateTimeField(null=True, blank=True)
+    published_at = models.DateTimeField(null=True, blank=True)
     admin_notes = models.TextField(null=True, blank=True)
     reader_notes = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
