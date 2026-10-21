@@ -18,17 +18,73 @@ class BooleanFormDataMixin:
                         data[field_name] = False
         return super().to_internal_value(data)
 
+
+
 class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, min_length=8)
-    confirm_password = serializers.CharField(write_only=True)
+    password = serializers.CharField(
+        write_only=True,
+        min_length=8
+    )
+
+    confirm_password = serializers.CharField(
+        write_only=True
+    )
+
+    date_of_birth = serializers.DateField(
+        required=True,
+        allow_null=False,
+        input_formats=['%Y-%m-%d'],
+        error_messages={
+            'required': 'Date of birth is required.',
+            'null': 'Date of birth cannot be empty.',
+            'invalid': 'Enter a valid date of birth (YYYY-MM-DD).',
+        }
+    )
 
     class Meta:
         model = User
-        fields = ['email', 'password', 'confirm_password', 'date_of_birth']
+        fields = [
+            'email',
+            'password',
+            'confirm_password',
+            'date_of_birth',
+        ]
+
+    def validate_date_of_birth(self, value):
+        from datetime import date
+        from django.utils import timezone
+
+        today = timezone.localdate()
+
+        if value > today:
+            raise serializers.ValidationError(
+                'Date of birth cannot be in the future.'
+            )
+
+        # Calculate the user's age based on whether
+        # their birthday has occurred this year.
+        age = today.year - value.year
+
+        if (today.month, today.day) < (
+            value.month,
+            value.day
+        ):
+            age -= 1
+
+        if age < 18:
+            raise serializers.ValidationError(
+                'You must be at least 18 years old '
+                'to register for NovelShelf.'
+            )
+
+        return value
 
     def validate(self, data):
         if data['password'] != data['confirm_password']:
-            raise serializers.ValidationError({'confirm_password': 'Passwords do not match'})
+            raise serializers.ValidationError({
+                'confirm_password': 'Passwords do not match'
+            })
+
         return data
 
     def create(self, validated_data):
