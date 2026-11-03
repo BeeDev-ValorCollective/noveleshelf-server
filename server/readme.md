@@ -257,7 +257,7 @@ None
 - On `401` response: automatically call `/refresh/`, update stored access token, retry original request
 - On logout: call `/logout/`, delete both tokens from storage, redirect to login
 - Never store access token in `localStorage` — use `sessionStorage` (web) or `SecureStore` (Expo)
-- Refresh token expires after 7 days — user will need to log in again after that
+- Access and refresh tokens both expire after 7 days (`SIMPLE_JWT` in `server/settings.py`) — user will need to log in again after that
 - Always display role context alongside usernames in UI e.g. "QueenBee (Author)" not just "QueenBee" to avoid confusion across profile types
 
 ---

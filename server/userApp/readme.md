@@ -1730,6 +1730,7 @@ Authorization     Bearer <access_token>
 - **Book visibility cascade on author deactivate/reactivate** — deactivating or reactivating an author profile does not yet automatically hide/show their books in `booksApp`. Currently manual.
 - **Email change security enhancement** — old-address notification with a revert option on email change is planned but not built.
 - **Reactivate user mandatory password reset** — planned but not built; reactivating currently restores access immediately with the existing password.
+- **Avatar uploads accept non-file values** — all five profile update views read `avatar_url` from `request.data` and save any non-empty value, so a string (e.g. `"[object Object]"` from a bad web FormData) is stored as the avatar path. Reading from `request.FILES` would ignore non-files.
 
 ---
 
