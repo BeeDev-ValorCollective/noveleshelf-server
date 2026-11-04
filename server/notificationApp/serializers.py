@@ -32,12 +32,38 @@ class SystemNotificationEmailSerializer(serializers.ModelSerializer):
         fields = ['id', 'email', 'label', 'is_active', 'notification_types', 'created_at', 'updated_at']
 
 
+
 class NotificationSerializer(serializers.ModelSerializer):
-    notification_type = NotificationTypeSerializer(read_only=True)
+    notification_type = NotificationTypeSerializer(
+        read_only=True
+    )
+
+    book_id = serializers.IntegerField(
+        read_only=True,
+        allow_null=True
+    )
+
+    chapter_id = serializers.IntegerField(
+        read_only=True,
+        allow_null=True
+    )
 
     class Meta:
         model = Notification
-        fields = ['id', 'notification_type', 'message', 'is_read', 'created_at']
+
+        fields = [
+            'id',
+            'notification_type',
+            'title',
+            'message',
+            'book_id',
+            'chapter_id',
+            'is_read',
+            'created_at',
+        ]
+
+        read_only_fields = fields
+
 
 
 class NotificationAdminSerializer(serializers.ModelSerializer):

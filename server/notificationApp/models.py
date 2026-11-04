@@ -96,24 +96,65 @@ class SystemNotificationEmail(models.Model):
         return f'{self.label} ({self.email})'
 
 
+
 class Notification(models.Model):
     user = models.ForeignKey(
         'userApp.User',
         on_delete=models.CASCADE,
         related_name='notifications'
     )
+
     notification_type = models.ForeignKey(
         NotificationType,
         on_delete=models.SET_NULL,
         null=True,
         related_name='notifications'
     )
+
+    title = models.CharField(
+        max_length=200,
+        blank=True,
+        default=''
+    )
+
     message = models.TextField()
+
+    book = models.ForeignKey(
+        'booksApp.Book',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='user_notifications'
+    )
+
+    chapter = models.ForeignKey(
+        'booksApp.Chapter',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='user_notifications'
+    )
+
     is_read = models.BooleanField(default=False)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['-created_at']
 
     def __str__(self):
-        return f'{self.user.email} - {self.notification_type.label if self.notification_type else "Unknown"} - {"Read" if self.is_read else "Unread"}'
+        notification_name = (
+            self.notification_type.label
+            if self.notification_type
+            else self.title or 'Notification'
+        )
+
+        read_status = (
+            'Read' if self.is_read else 'Unread'
+        )
+
+        return (
+            f'{self.user.email} - '
+            f'{notification_name} - '
+            f'{read_status}'
+        )
