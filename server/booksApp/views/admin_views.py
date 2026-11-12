@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from booksApp.models import Genre, ContentRating, RelationshipTag, Keyword, Book
 from booksApp.serializers import GenreSerializer, ContentRatingSerializer, RelationshipTagSerializer, KeywordSerializer, BookAdminSerializer
+from utils.admin_list import admin_order, admin_paginate
 
 
 # ─── Genre ────────────────────────────────────────────────────────────────────
@@ -444,7 +445,7 @@ def list_books(request):
             status=status.HTTP_403_FORBIDDEN
         )
 
-    books = Book.objects.all().order_by('-created_at')
+    books = Book.objects.all()
 
     status_filter = request.query_params.get('status')
     has_pending_changes = request.query_params.get('has_pending_changes')
@@ -461,21 +462,14 @@ def list_books(request):
     elif author_type == 'free':
         books = books.filter(free_author_profile__isnull=False)
 
-    page_size = 20
-    page = int(request.query_params.get('page', 1))
-    start = (page - 1) * page_size
-    end = start + page_size
-    total = books.count()
-
-    return Response({
-        'count': total,
-        'page': page,
-        'page_size': page_size,
-        'total_pages': (total + page_size - 1) // page_size,
-        'next': f'?page={page + 1}' if end < total else None,
-        'previous': f'?page={page - 1}' if page > 1 else None,
-        'results': BookAdminSerializer(books[start:end], many=True).data
+    books = admin_order(request, books, {
+        'newest': '-created_at',
+        'oldest': 'created_at',
+        'az': 'title',
+        'za': '-title',
     })
+
+    return Response(admin_paginate(request, books, BookAdminSerializer))
 
 
 @api_view(['PATCH'])

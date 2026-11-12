@@ -7,6 +7,7 @@ from ..serializers import AdminProfileSerializer, AuthorProfileSerializer, Moder
 from ..models import AdminProfile, AuthorProfile, ModeratorProfile, FreeAuthorProfile, AuthorRequest, EmailVerificationToken
 from utils.email_utils import send_author_approved_email, send_author_deactivated_email, send_author_reactivated_email, send_notification, send_verification_email
 from django.db.models import Q
+from utils.admin_list import admin_order, admin_paginate
 import threading
 
 User = get_user_model()
@@ -339,25 +340,19 @@ def list_users(request):
     if is_active is not None:
         is_active_bool = is_active.lower() == 'true'
         users = users.filter(is_active=is_active_bool)
-    
-    # pagination
-    page_size = 20
-    page = int(request.query_params.get('page', 1))
-    start = (page - 1) * page_size
-    end = start + page_size
-    
-    total = users.count()
-    users_page = users[start:end]
-    
-    return Response({
-        'count': total,
-        'page': page,
-        'page_size': page_size,
-        'total_pages': (total + page_size - 1) // page_size,
-        'next': f'?page={page + 1}' if end < total else None,
-        'previous': f'?page={page - 1}' if page > 1 else None,
-        'results': UserSerializer(users_page, many=True).data
+
+    search = request.query_params.get('search', '').strip()
+    if search:
+        users = users.filter(email__icontains=search)
+
+    users = admin_order(request, users, {
+        'newest': '-date_joined',
+        'oldest': 'date_joined',
+        'az': 'email',
+        'za': '-email',
     })
+
+    return Response(admin_paginate(request, users, UserSerializer))
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -372,7 +367,7 @@ def list_author_requests(request):
     request_type = request.query_params.get('request_type')
     contact_attempted = request.query_params.get('contact_attempted')
 
-    requests = AuthorRequest.objects.all().order_by('-created_at')
+    requests = AuthorRequest.objects.all()
 
     if status_filter:
         requests = requests.filter(status=status_filter)
@@ -384,24 +379,14 @@ def list_author_requests(request):
         contact_attempted_bool = contact_attempted.lower() == 'true'
         requests = requests.filter(contact_attempted=contact_attempted_bool)
 
-    # pagination
-    page_size = 20
-    page = int(request.query_params.get('page', 1))
-    start = (page - 1) * page_size
-    end = start + page_size
-
-    total = requests.count()
-    requests_page = requests[start:end]
-
-    return Response({
-        'count': total,
-        'page': page,
-        'page_size': page_size,
-        'total_pages': (total + page_size - 1) // page_size,
-        'next': f'?page={page + 1}' if end < total else None,
-        'previous': f'?page={page - 1}' if page > 1 else None,
-        'results': AuthorRequestAdminSerializer(requests_page, many=True).data
+    requests = admin_order(request, requests, {
+        'newest': '-created_at',
+        'oldest': 'created_at',
+        'az': 'user__email',
+        'za': '-user__email',
     })
+
+    return Response(admin_paginate(request, requests, AuthorRequestAdminSerializer))
 
 
 @api_view(['PATCH'])
