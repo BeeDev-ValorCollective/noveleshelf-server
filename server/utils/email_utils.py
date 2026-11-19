@@ -27,7 +27,7 @@ Please verify your email address by clicking the link below:
 
 {verification_url}
 
-This link expires in 24 hours.
+This link expires in 7 days.
 
 This email was sent to {user.email}. If you did not create an account please ignore this email.
 
