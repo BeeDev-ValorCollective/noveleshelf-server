@@ -63,7 +63,7 @@ server/
 ├── currencyApp/     — Wallet, currency, transactions, daily reward, admin currency add → [Documentation](currencyApp/readme.md)
 ├── notificationApp/ — Notifications, preferences, system emails → [Documentation](notificationApp/readme.md)
 ├── cron/            — Cron job functions
-├── utils/           — Shared utility functions (email, tokens)
+├── utils/           — Shared utility functions (email, tokens, admin list sort/pagination)
 ├── server/          — Core settings, URLs, debug endpoints
 ├── userApp/         — Auth, user profiles, follow system, admin endpoints → [Documentation](userApp/readme.md)
 ├── logs/            — Cron job log files
@@ -254,10 +254,11 @@ None
 ## Frontend Notes
 - On login/register: store both tokens, use user data to route to correct dashboard
 - On app load: check for stored token, if exists call `/me/` to rebuild user state
-- On `401` response: automatically call `/refresh/`, update stored access token, retry original request
+- On `401` response: automatically call `/refresh/`, store **both** returned tokens, retry original request. Vite (`src/utils/session.js`) and Expo (`utils/session.js`) both do this via a `fetch` wrapper
 - On logout: call `/logout/`, delete both tokens from storage, redirect to login
 - Never store access token in `localStorage` — use `sessionStorage` (web) or `SecureStore` (Expo)
-- Access and refresh tokens both expire after 7 days (`SIMPLE_JWT` in `server/settings.py`) — user will need to log in again after that
+- Access tokens expire after 1 day, refresh tokens after 30 days (`SIMPLE_JWT` in `server/settings.py`). Refresh tokens rotate and the old one is blacklisted on use, so clients must save the new `refresh` from every refresh response or the next refresh fails. A user who opens the app at least once every 30 days stays logged in
+- `TIME_ZONE = 'UTC'` — daily resets (login reward, streaks) and cron jobs all run at midnight UTC
 - Always display role context alongside usernames in UI e.g. "QueenBee (Author)" not just "QueenBee" to avoid confusion across profile types
 
 ---

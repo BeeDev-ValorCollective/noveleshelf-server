@@ -267,6 +267,7 @@ None
     "id": 1,
     "email": "user@example.com",
     "date_of_birth": "1990-01-01",
+    "date_joined": "2026-04-08T12:00:00Z",
     "default_login_role": "reader",
     "profile": {
         "username": null,
@@ -313,7 +314,8 @@ Content-Type    application/json
 #### Success response 200:
 ```json
 {
-    "access": "eyJ..."
+    "access": "eyJ...",
+    "refresh": "eyJ..."
 }
 ```
 #### Error response 401:
@@ -322,6 +324,8 @@ Content-Type    application/json
     "detail": "Token is invalid or expired"
 }
 ```
+#### Notes:
+- Refresh tokens rotate (`ROTATE_REFRESH_TOKENS` + `BLACKLIST_AFTER_ROTATION`): the `refresh` sent in is blacklisted and a new one is returned. Save it, or the next refresh returns 401.
 
 ---
 
@@ -1354,6 +1358,9 @@ None
 ```
 role         filter by role: reader, author, free_author, any_author, admin, moderator
 is_active    filter by active status: true, false
+search       case-insensitive match on email
+order        newest (default), oldest, az, za — date_joined for newest/oldest, email for az/za
+page_size    10, 25, 50, or 100 — anything else falls back to 20
 page         page number, defaults to 1
 ```
 #### Success response 200:
@@ -1370,6 +1377,7 @@ page         page number, defaults to 1
             "id": 1,
             "email": "user@example.com",
             "date_of_birth": "1990-01-01",
+            "date_joined": "2026-04-22T18:00:55.174230Z",
             "default_login_role": "reader",
             "profile": {...},
             "wallet": {...},
@@ -1396,8 +1404,8 @@ page         page number, defaults to 1
 - `role=free_author` returns free authors only
 - `role=any_author` returns both paid and free authors
 - `is_active=false` returns deactivated users
-- Results are paginated at 20 per page
-- Use `page` param to navigate through results
+- Sorting and pagination come from `utils/admin_list.py` (`admin_order`, `admin_paginate`), shared with the author request and admin book lists. `id` is a tie-breaker so rows can't shift between pages
+- `search` runs across all users, not just the current page
 
 ---
 
@@ -1415,6 +1423,8 @@ None
 status              filter by status: pending, in_progress, approved, not_at_this_time, cleared
 request_type        filter by type: new_author, new_genre, tier_review, contract_addendum, leave_platform, rejoin_platform
 contact_attempted   filter by contact status: true, false
+order               newest (default), oldest, az, za — created_at for newest/oldest, user email for az/za
+page_size           10, 25, 50, or 100 — anything else falls back to 20
 page                page number, defaults to 1
 ```
 #### Success response 200:

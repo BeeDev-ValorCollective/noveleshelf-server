@@ -1290,7 +1290,12 @@ None
 ```json
 {
     "count": 2,
-    "books": [
+    "page": 1,
+    "page_size": 20,
+    "total_pages": 1,
+    "next": null,
+    "previous": null,
+    "results": [
         {
             "id": 1,
             "title": "My First Book",
@@ -1328,10 +1333,14 @@ None
 status                 filter by status: draft, pending_approval, approved, changes_requested, rejected
 author_type            filter by author type: paid, free
 has_pending_changes    filter by pending changes flag: true, false
+order                  newest (default), oldest, az, za — created_at for newest/oldest, title for az/za
+page_size              10, 25, 50, or 100 — anything else falls back to 20
+page                   page number, defaults to 1
 ```
 #### Notes:
 - Admin access required
-- Returns all books across all authors ordered by most recently updated
+- Returns all books across all authors, newest first by default
+- Sorting and pagination come from the shared `utils/admin_list.py` helpers (same as the admin user and author request lists)
 - Use `status=pending_approval` to see the approval queue
 
 ---
